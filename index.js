@@ -76,6 +76,8 @@ class InputBuffer {
     this.prefix = prefix;
     this.chars = [];
     this.position = 0;
+    this.history = [];
+    this.history_pos = -1;
   }
 
   value() {
@@ -97,6 +99,30 @@ class InputBuffer {
   }
 
   end() {
+    this.position = this.chars.length;
+  }
+
+  history_add() {
+    this.history.push(this.chars);
+    this.history_pos = this.history.length - 1;
+  }
+
+  history_prev() {
+    if (this.history.length === 0)
+      return;
+
+    this.chars = this.history[this.history_pos];
+    this.position = this.chars.length;
+
+    if (this.history_pos > 0)
+      --this.history_pos;
+  }
+
+  history_next() {
+    if (this.history_pos + 1 >= this.history.length)
+      return;
+
+    this.chars = this.history[++this.history_pos];
     this.position = this.chars.length;
   }
 
@@ -458,15 +484,16 @@ function handle_keypress_insert(key) {
       break;
     case "\r": // enter
       handle_input();
+      input.history_add();
       input.clear();
       break;
     case "\u001b[A": // up
     case "\u001bbk": // alt+k
-      // TODO: history
+      input.history_prev();
       break;
     case "\u001b[B": // down
     case "\u001bj": // alt+j
-      // TODO: history
+      input.history_next();
       break;
     case "\u001b[C": // right
     case "\u001bl": // right
@@ -528,7 +555,7 @@ function handle_input() {
     handle_command(s.substring(command_prefix.length));
     return;
   }
-  client.send(s)
+  client.send(s);
 }
 
 function handle_command(command) {
