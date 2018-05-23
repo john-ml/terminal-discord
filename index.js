@@ -179,11 +179,16 @@ class InputBuffer {
   }
 
   put() {
-    clear_line();
+    let lines = this.chars.filter(c => c === "\n").length + 1;
+    let line_clearer = "\r" + " ".repeat(process.stdout.columns) + "\r" + ansi.move_up;
+    process.stdout.write(line_clearer.repeat(lines) + ansi.move_down);
     print(this.prefix + this.value());
     process.stdout.write("\b".repeat(this.chars.length - this.position));
   }
 }
+ansi = {};
+ansi.move_up = "\033[1A";
+ansi.move_down = "\033[1B";
 
 // wrap server/channel navigation, DMs, etc
 class Client {
@@ -430,7 +435,7 @@ class Client {
   send(s) {
     switch (this.state) {
       case Client.TOP:
-        println("Currently not in a text channel.");
+        println("\nCurrently not in a text channel.");
         break;
       case Client.CHANNEL:
       case Client.DM:
@@ -462,17 +467,7 @@ let stdin;
 let client = new Client(token);
 let input = new InputBuffer(prefix);
 
-Mode = { COMMAND: 0, INSERT: 1 };
-let mode = Mode.INSERT;
-
 function handle_keypress(key) {
-  switch (mode) {
-    case Mode.COMMAND: handle_keypress_command(key); break;
-    case Mode.INSERT: handle_keypress_insert(key); break;
-  }
-}
-
-function handle_keypress_insert(key) {
   switch (key) {
     case "\u0003": // ctrl-c
     case "\u0004": // ctrl-d
@@ -480,12 +475,14 @@ function handle_keypress_insert(key) {
       break;
     case "\u007f": // bksp
       input.backspace();
-      input.put();
       break;
     case "\r": // enter
       handle_input();
       input.history_add();
       input.clear();
+      break;
+    case "\u001b;": // alt+'
+      input.insert("\n");
       break;
     case "\u001b[A": // up
     case "\u001bbk": // alt+k
@@ -612,6 +609,7 @@ function handle_command(command) {
     case "image":
       client.send_image(arg);
       break;
+    case "p":
     case "pwd":
       client.print_current_path();
       break;
