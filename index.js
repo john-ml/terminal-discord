@@ -10,7 +10,7 @@ const author_size = 10;
 const separator = "│";
 
 // to get unicode escape codes
-unicode_keylogger = true;
+unicode_keylogger = false;
 
 // helper printing functions
 function clear_line() {
@@ -166,6 +166,7 @@ class Client {
     this.client = new Discord.Client();
 
     this.channel = undefined; // used when state = CHANNEL or DM
+    this.scroll_offset = 0; // used when state = CHANNEL or DM
 
     // hook up discord.js events
     println("Logging in...");
@@ -189,6 +190,34 @@ class Client {
   channels(server) {
     let channels = server.channels.array();
     return channels.filter(c => c.type === "text");
+  }
+
+  // callback is a function that works with an array of messages
+  // the messages array is in reverse chronological order
+  fetch_messages(n, callback) {
+    let self = this;
+    let messages = [];
+    let max_request_size = 100;
+
+    let accumulate = function(ms) {
+      if (messages === undefined)
+        messages = ms;
+      else
+        messages = messages.concat(ms.array());
+
+      if (ms.array().length === 0 || messages.length === n)
+        callback(messages); // no more messages to load
+      else {
+        // load next batch of messages
+        let options = {
+          limit: max_request_size,
+          before: messages[messages.length - 1].id
+        };
+        self.channel.fetchMessages(options).then(accumulate);
+      }
+    };
+
+    this.channel.fetchMessages({ limit: n % max_request_size }).then(accumulate);
   }
 
   list_servers() {
@@ -311,21 +340,65 @@ class Client {
   refresh() {
     let self = this;
     let print_messages = function(messages) {
-      for (let i = messages.size - 1; i >= 0; --i) {
-        let m = messages.array()[i];
+      for (let i = messages.length - 1; i >= self.scroll_offset; --i) {
+        let m = messages[i];
         self.print_message(m);
+      }
+      if (self.scroll_offset !== 0) {
+        let remark = "approximately " + self.scroll_offset + " more messages below";
+        let spaces = process.stdout.columns - remark.length;
+        let spaces_left = Math.floor(spaces / 2);
+        let spaces_right = Math.ceil(spaces / 2);
+        
+        let line = " ".repeat(spaces_left) + remark + " ".repeat(spaces_right);
+        println(colorize(line, "black", "white"));
       }
       input.put(); // redraw the cursor (necessary since this happens synchronously)
     };
+
+    let n;
     switch (this.state) {
       case Client.TOP:
         println("No channels to view. Type 'help' for a list of available commands.");
         break;
       case Client.CHANNEL:
       case Client.DM:
-        this.channel.fetchMessages({ limit: process.stdout.rows })
-          .then(print_messages);
+        n = process.stdout.rows + this.scroll_offset;
+        this.fetch_messages(n, print_messages);
     }
+  }
+
+  set_scroll(n) {
+    let new_offset;
+    switch (this.state) {
+     case Client.TOP:
+        println("Currently not in a text channel.");
+        break;
+     case Client.CHANNEL:
+     case Client.DM:
+        new_offset = Math.max(0, n);
+        if (this.scroll_offset !== new_offset) {
+          this.scroll_offset = new_offset;
+          this.refresh();
+        }
+        break;
+    }
+  }
+
+  scroll_up() {
+    this.set_scroll(this.scroll_offset + 1);
+  }
+
+  scroll_down() {
+    this.set_scroll(this.scroll_offset - 1);
+  }
+
+  page_down() {
+    this.set_scroll(this.scroll_offset - process.stdout.rows);
+  }
+
+  page_up() {
+    this.set_scroll(this.scroll_offset + process.stdout.rows);
   }
 
   send(s) {
@@ -363,7 +436,17 @@ let stdin;
 let client = new Client(token);
 let input = new InputBuffer(prefix);
 
+Mode = { COMMAND: 0, INSERT: 1 };
+let mode = Mode.INSERT;
+
 function handle_keypress(key) {
+  switch (mode) {
+    case Mode.COMMAND: handle_keypress_command(key); break;
+    case Mode.INSERT: handle_keypress_insert(key); break;
+  }
+}
+
+function handle_keypress_insert(key) {
   switch (key) {
     case "\u0003": // ctrl-c
     case "\u0004": // ctrl-d
@@ -413,6 +496,20 @@ function handle_keypress(key) {
       break;
     case "\u001b": // esc
       input.clear();
+      break;
+    case "\u0005": // ctrl+e
+      client.scroll_down();
+      break;
+    case "\u0019": // ctrl+y
+      client.scroll_up();
+      break;
+    case "\u0006": // ctrl+f
+    case "\u001b[6~": // page-down
+      client.page_down();
+      break;
+    case "\u0002": // ctrl+b
+    case "\u001b[5~": // page-up
+      client.page_up();
       break;
     default:
       if (unicode_keylogger) {
