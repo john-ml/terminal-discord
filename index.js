@@ -85,6 +85,7 @@ class InputBuffer {
     this.lines = [[]];
     this.row = 0;
     this.col = 0;
+    this.max_rows = 1; // the longest the buffer's ever been over the course of a single edit
     this.history = [];
     this.history_pos = -1;
   }
@@ -132,7 +133,7 @@ class InputBuffer {
   }
 
   history_add() {
-    this.history.push(this.lines); // TODO: need copy?
+    this.history.push(this.lines);
     this.history_pos = this.history.length - 1;
   }
 
@@ -164,6 +165,7 @@ class InputBuffer {
     if (c === "\n") {
       this.lines.splice(++this.row, 0, []);
       this.col = 0;
+      ++this.max_rows;
     } else
       this.lines[this.row].splice(this.col++, 0, c);
   }
@@ -171,19 +173,28 @@ class InputBuffer {
   backspace(c) {
     if (this.col > 0 && this.lines[this.row].length > 0)
       this.lines[this.row].splice(--this.col, 1);
-    // TODO spill onto other lines
+    else if (this.col === 0 && this.row > 0) {
+      let remaining = this.lines.splice(this.row, 1)[0];
+      this.row--;
+     
+      this.col = this.lines[this.row].length;
+      this.lines[this.row] = this.lines[this.row].concat(remaining);
+    }
   }
 
   delete(c) {
-    if (this.lines[this.row].length > 0)
-      this.lines[this.row].splice(this.position, 1);
-    // TODO spill onto other lines
+    if (this.col === this.lines[this.row].length && this.row < this.lines.length - 1) {
+      let remaining = this.lines.splice(this.row + 1, 1)[0];
+      this.lines[this.row] = this.lines[this.row].concat(remaining);
+    } else
+      this.lines[this.row].splice(this.col, 1);
   }
 
   clear() {
     this.lines = [[]];
     this.row = 0;
     this.col = 0;
+    this.max_rows = 1;
   }
 
   put() {
@@ -191,7 +202,7 @@ class InputBuffer {
     process.stdout.write(bottom);
 
     let line_clearer = "\r" + " ".repeat(process.stdout.columns) + "\r" + ansi.move_up;
-    process.stdout.write(line_clearer.repeat(this.lines.length) + ansi.move_down);
+    process.stdout.write(line_clearer.repeat(this.max_rows) + ansi.move_down);
 
     print(this.prefix + this.lines.map(line => line.join("")).join("\n" + this.cont_prefix));
     process.stdout.write(ansi.move_up.repeat(this.lines.length - 1 - this.row) + "\r");
