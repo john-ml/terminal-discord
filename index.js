@@ -4,7 +4,8 @@ const Discord = require("discord.js");
 const fs = require("fs");
 const config = JSON.parse(fs.readFileSync("config.json"));
 const token = config.token;
-const prefix = "> ";
+const prefix = "$ ";
+const cont_prefix = "│ ";
 const command_prefix = "/";
 const author_size = 10;
 const separator = "│";
@@ -71,39 +72,67 @@ function pad(str, len, pad_char) {
 }
 
 // manually mantain the input buffer
+ansi = {};
+ansi.move_up = "\033[1A";
+ansi.move_down = "\033[1B";
+ansi.move_right = "\033[1C";
+ansi.move_left = "\033[1D";
+ansi.beginning_of_line = n => "\033[" + n + "E";
 class InputBuffer {
-  constructor(prefix) {
+  constructor(prefix, cont_prefix) {
     this.prefix = prefix;
-    this.chars = [];
-    this.position = 0;
+    this.cont_prefix = cont_prefix;
+    this.lines = [[]];
+    this.row = 0;
+    this.col = 0;
     this.history = [];
     this.history_pos = -1;
   }
 
   value() {
-    return this.chars.join("");
-  }
-
-  left() {
-    if (this.position > 0)
-      --this.position;
-  }
-
-  right() {
-    if (this.position < this.chars.length)
-      ++this.position;
+    return this.lines.map(line => line.join("")).join("\n");
   }
 
   home() {
-    this.position = 0;
+    this.col = 0;
   }
 
   end() {
-    this.position = this.chars.length;
+    this.col = this.lines[this.row].length;
+  }
+
+  up() {
+    if (this.row > 0)
+      --this.row;
+    this.col = Math.min(this.col, this.lines[this.row].length);
+  }
+
+  down() {
+    if (this.row < this.lines.length - 1)
+      ++this.row;
+    this.col = Math.min(this.col, this.lines[this.row].length);
+  }
+
+  left() {
+    if (this.col > 0)
+      --this.col;
+    else if (this.row > 0) {
+      --this.row;
+      this.end();
+    }
+  }
+
+  right() {
+    if (this.col < this.lines[this.row].length)
+      ++this.col;
+    else if (this.row < this.lines.length - 1) {
+      ++this.row;
+      this.home();
+    }
   }
 
   history_add() {
-    this.history.push(this.chars);
+    this.history.push(this.lines); // TODO: need copy?
     this.history_pos = this.history.length - 1;
   }
 
@@ -111,8 +140,9 @@ class InputBuffer {
     if (this.history.length === 0)
       return;
 
-    this.chars = this.history[this.history_pos];
-    this.position = this.chars.length;
+    this.lines = this.history[this.history_pos];
+    this.row = this.lines.length - 1;
+    this.end();
 
     if (this.history_pos > 0)
       --this.history_pos;
@@ -122,73 +152,56 @@ class InputBuffer {
     if (this.history_pos + 1 >= this.history.length)
       return;
 
-    this.chars = this.history[++this.history_pos];
-    this.position = this.chars.length;
-  }
-
-  next_word() {
-    // skip non-whitespace
-    while (this.position < this.chars.length
-        && !/\s/.test(this.chars[this.position]))
-      ++this.position;
-    // skip whitespace and stop at first non-whitespace
-    while (this.position < this.chars.length
-        && /\s/.test(this.chars[this.position]))
-      ++this.position;
-  }
-
-  prev_word() {
-    // skip whitespace
-    while (this.position > 0
-        && /\s/.test(this.chars[this.position - 1]))
-      --this.position;
-    // skip non-whitespace and stop one character after next whitespace
-    while (this.position > 0
-        && !/\s/.test(this.chars[this.position - 1]))
-      --this.position;
-  }
-
-  delete_word() {
-    // delete non-whitespace
-    while (this.position < this.chars.length
-        && !/\s/.test(this.chars[this.position]))
-      this.delete();
-    // delete whitespace
-    while (this.position < this.chars.length
-        && /\s/.test(this.chars[this.position]))
-      this.delete();
+    this.lines = this.history[++this.history_pos];
+    this.row = this.lines.length - 1;
+    this.end();
   }
 
   insert(c) {
-    this.chars.splice(this.position++, 0, c);
+    if (this.lines[this.row] === undefined)
+      this.lines[this.row] = [];
+
+    if (c === "\n") {
+      this.lines.splice(++this.row, 0, []);
+      this.col = 0;
+    } else
+      this.lines[this.row].splice(this.col++, 0, c);
   }
 
   backspace(c) {
-    if (this.position > 0 && this.chars.length > 0)
-      this.chars.splice(--this.position, 1);
+    if (this.col > 0 && this.lines[this.row].length > 0)
+      this.lines[this.row].splice(--this.col, 1);
+    // TODO spill onto other lines
   }
 
   delete(c) {
-    if (this.chars.length > 0)
-      this.chars.splice(this.position, 1);
+    if (this.lines[this.row].length > 0)
+      this.lines[this.row].splice(this.position, 1);
+    // TODO spill onto other lines
   }
 
   clear() {
-    this.chars = [];
-    this.position = 0;
+    this.lines = [[]];
+    this.row = 0;
+    this.col = 0;
   }
 
   put() {
-    let lines = this.chars.filter(c => c === "\n").length + 1;
+    let bottom = ansi.beginning_of_line(process.stdout.rows);
+    process.stdout.write(bottom);
+
     let line_clearer = "\r" + " ".repeat(process.stdout.columns) + "\r" + ansi.move_up;
-    process.stdout.write(line_clearer.repeat(lines) + ansi.move_down);
-    print(this.prefix + this.value());
-    process.stdout.write("\b".repeat(this.chars.length - this.position));
+    process.stdout.write(line_clearer.repeat(this.lines.length) + ansi.move_down);
+
+    print(this.prefix + this.lines.map(line => line.join("")).join("\n" + this.cont_prefix));
+    process.stdout.write(ansi.move_up.repeat(this.lines.length - 1 - this.row) + "\r");
+
+    let right_offset = this.row == 0 ? this.prefix.length : this.cont_prefix.length;
+    process.stdout.write(ansi.move_right.repeat(right_offset + this.col));
+
+    //process.stdout.write(this.row + " " + this.col + " " + this.lines.length);
   }
 }
-ansi = {};
-ansi.move_up = "\033[1A";
-ansi.move_down = "\033[1B";
 
 // wrap server/channel navigation, DMs, etc
 class Client {
@@ -330,8 +343,6 @@ class Client {
   }
 
   print_message(m) {
-    let text = m.cleanContent;
-  
     let date = m.createdAt;
     let hours = date.getHours();
     let minutes = date.getMinutes();
@@ -344,6 +355,14 @@ class Client {
         author = colorize_rgb(author, m.member.displayHexColor);
     }
   
+    // stamp length = 5
+    let indent = [5, author_size, 0].reduce((x, y) => x + y + 1);
+    let prefix = " ".repeat(indent) + separator + " ";
+    let lines = m.cleanContent.split("\n");
+    let text = lines[0];
+    if (lines.length > 1)
+      text += lines.slice(1).map(line => "\n" + prefix + line).join("");
+
     if (m.attachments.array().length > 0)
       text += m.attachments.array()[0].url;
     if (m.isMemberMentioned(this.client.user)) {
@@ -356,9 +375,6 @@ class Client {
     
     let reacts = m.reactions;
     if (reacts.size > 0) {
-      // stamp length = 5
-      let indent = [5, author_size, separator.length, 0].reduce((x, y) => x + y + 1);
-      let prefix = " ".repeat(indent);
       let react2str = function(react) {
         let num = colorize(react.count, "cyan");
         let name = colorize(react.emoji.name, "blue");
@@ -390,7 +406,7 @@ class Client {
     let n;
     switch (this.state) {
       case Client.TOP:
-        println("No channels to view. Type 'help' for a list of available commands.");
+        println("\nNo channels to view. Type 'help' for a list of available commands.");
         break;
       case Client.CHANNEL:
       case Client.DM:
@@ -465,7 +481,7 @@ Client.CHANNEL = 2;
 
 let stdin;
 let client = new Client(token);
-let input = new InputBuffer(prefix);
+let input = new InputBuffer(prefix, cont_prefix);
 
 function handle_keypress(key) {
   switch (key) {
@@ -485,19 +501,23 @@ function handle_keypress(key) {
       input.insert("\n");
       break;
     case "\u001b[A": // up
-    case "\u001bbk": // alt+k
       input.history_prev();
       break;
+    case "\u001bk": // alt+k
+      input.up();
+      break;
     case "\u001b[B": // down
-    case "\u001bj": // alt+j
       input.history_next();
       break;
+    case "\u001bj": // alt+j
+      input.down();
+      break;
     case "\u001b[C": // right
-    case "\u001bl": // right
+    case "\u001bl": // alt+l
       input.right();
       break;
     case "\u001b[D": // left
-    case "\u001bh": // left
+    case "\u001bh": // alt+h
       input.left();
       break;
     case "\u001b[3~": // delete
@@ -552,6 +572,7 @@ function handle_input() {
     handle_command(s.substring(command_prefix.length));
     return;
   }
+  println();
   client.send(s);
 }
 
