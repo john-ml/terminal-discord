@@ -2,7 +2,7 @@
 
 const Discord = require("discord.js");
 const fs = require("fs");
-const config = JSON.parse(fs.readFileSync(process.env.HOME + "/AURs/terminal-discord/config.json"));
+const config = JSON.parse(fs.readFileSync("config.json"));
 const token = config.token;
 const prefix = "> ";
 const command_prefix = "/";
