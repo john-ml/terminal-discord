@@ -7,7 +7,7 @@ const token = config.token;
 const prefix = "$ ";
 const cont_prefix = "│ ";
 const command_prefix = "/";
-const author_size = 10;
+const author_size = 15;
 const separator = "│";
 const fuzzy_separator = ":";
 
