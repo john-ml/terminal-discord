@@ -326,7 +326,7 @@ class Client {
       }
     };
 
-    this.channel.fetchMessages({ limit: n % max_request_size }).then(accumulate);
+    return this.channel.fetchMessages({ limit: n % max_request_size }).then(accumulate);
   }
 
   list_servers() {
@@ -408,12 +408,14 @@ class Client {
   }
 
   print_message(m) {
+    // time stamp
     let date = m.createdAt;
     let hours = date.getHours();
     let minutes = date.getMinutes();
     let pad_time = s => pad(s, 2, "0");
     let stamp = pad_time(hours) + ":" + pad_time(minutes);
   
+    // username
     let author = pad(m.author.username, author_size, " ");
     if (m.member !== null) {
       if (rgb2octal(m.member.displayHexColor) !== rgb2octal("#000000"))
@@ -432,6 +434,7 @@ class Client {
     let lines = m.cleanContent.split("\n").map(split_line);
     let text = lines[0][0];
 
+    // message body
     let combine_overflow_lines = ls => ls.map(l => "\n" + fuzzy_prefix + l).join("");
     let combine_lines = ls => "\n" + prefix + ls[0] + combine_overflow_lines(ls.slice(1));
     if (lines[0].length > 1)
@@ -439,17 +442,19 @@ class Client {
     if (lines.length > 1)
       text += lines.slice(1).map(combine_lines).join("");
     
-
+    // attachments
     if (m.attachments.array().length > 0)
-      text += m.attachments.array()[0].url;
+      text += m.attachments.array()[0].url; // don't handle overflow--easier to copy urls
     if (m.isMemberMentioned(this.client.user)) {
       stamp = colorize(stamp, "yellow");
       text = colorize(text, "yellow");
     }
 
+    // print message
     let out = [stamp, author, separator, text].join(" ");
     println(out);
     
+    // print reactions
     let reacts = m.reactions;
     if (reacts.size > 0) {
       let react2str = function(react) {
@@ -457,7 +462,7 @@ class Client {
         let name = colorize(react.emoji.name, "blue");
         return num + " " + name;
       };
-      println(prefix + reacts.map(react2str).join(" "));
+      println(prefix + reacts.map(react2str).join(" ")); // overflow?
     }
   }
 
@@ -469,7 +474,7 @@ class Client {
         self.print_message(m);
       }
       if (self.scroll_offset !== 0) {
-        let remark = "approximately " + self.scroll_offset + " more messages below";
+        let remark = self.scroll_offset + " more...";
         let spaces = process.stdout.columns - remark.length;
         let spaces_left = Math.floor(spaces / 2);
         let spaces_right = Math.ceil(spaces / 2);
@@ -570,6 +575,7 @@ class Client {
         }
       }
       println("Couldn't find a message to delete within the last " + max_search_limit + " messages.");
+      input.put(); // needed since this operation is synchronous
     };
 
     switch (this.state) {
@@ -579,6 +585,33 @@ class Client {
       case Client.CHANNEL:
       case Client.DM:
         this.fetch_messages(max_search_limit, delete_messages);
+        break;
+    }
+  }
+
+  reply_to(name, message) {
+    let self = this;
+    let max_search_limit = 50;
+    let send_mention = function(messages) {
+      for (let i = 0; i < messages.length; ++i) {
+        let m = messages[i];
+        //console.log(m.author.username, name);
+        if (m.author.username.includes(name)) {
+          m.reply(message);
+          return true;
+        }
+      }
+      println("Couldn't find sender matching '" + name + "' within last " + max_search_limit + " messages.");
+      input.put();
+    }
+
+    switch (this.state) {
+      case Client.TOP:
+        println("Currently not in a text channel.");
+        break;
+      case Client.CHANNEL:
+      case Client.DM:
+        this.fetch_messages(max_search_limit, send_mention);
         break;
     }
   }
@@ -675,7 +708,8 @@ function handle_keypress(key) {
       input.insert(key);
       break;
   }
-  input.put();
+
+  input.put(); 
 }
 
 function handle_input() {
@@ -745,15 +779,27 @@ function handle_command(command) {
       break;
     case "d":
     case "delete":
-      k = arg.split(" ")[0];
-      max_search_limit = arg.split(" ")[1];
-      if (isNaN(parseInt(k)))
-        k = 1;
+      k = parseInt(arg.split(" ")[0]);
+      max_search_limit = parseInt(arg.split(" ")[1]);
+      if (isNaN(k))
+        k = undefined;
+      if (isNaN(max_search_limit))
+        max_search_limit = undefined;
       client.delete(k, max_search_limit);
       break;
     case "p":
     case "pwd":
       client.print_current_path();
+      break;
+    case "a":
+    case "at":
+      name = arg.split(" ")[0];
+      contents = arg.substring(arg.indexOf(" ") + 1);
+      client.reply_to(name, contents);
+      break;
+    case "h":
+    case "help":
+      println(fs.readFileSync("README.md"));
       break;
     default:
       println("Unknown command '" + cmd + "'.");
