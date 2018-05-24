@@ -477,11 +477,52 @@ class Client {
     let prefix = space.repeat(indent) + sep + space;
     let fuzzy_prefix = space.repeat(indent) + fuzzy_sep + space;
  
-    // convert main message to text, accounting for overflow
+    // number of columns available for each line of message
     let cols = process.stdout.columns - indent - separator.length - 1;
-    let denull = item => item === null ? [""] : item
-    let split_line = line => denull(line.match(new RegExp(".{1," + cols + "}", "g")));
-    let lines = m.cleanContent.split("\n").map(split_line);
+    let line_number_size = 3; // assume no fenced code blocks > 1000 lines in length
+    let fenced_space = "  ";
+    let fenced_cols = cols - line_number_size - fenced_space.length;
+
+    // helpers for text2lines and fenced2lines
+    let denull = item => item === null ? [""] : item;
+    let split_text = cols => text => denull(text.match(new RegExp(".{1," + cols + "}", "g")));
+
+    // functions to convert a message (that may contain fenced code blocks) into multiple lines
+    // where each line is gauranteed not to overflow
+    let text2lines = function(text) {
+      let fence = text.indexOf("```");
+
+      if (fence === -1)
+        return text.split("\n").map(split_text(cols));
+
+      let texts = [];
+      if (fence !== 0)
+        texts = text2lines(text.substring(0, fence));
+
+      return texts.concat(fenced2lines(text.substring(fence + "```".length)));
+    };
+    let fenced2lines = function(text) {
+      let fence = text.indexOf("```");
+
+      let number_line = function(line, number) {
+        let line_number = colorize_(pad(number + "", line_number_size, " "), "yellow") + fenced_space;
+        let spaces = " ".repeat(line_number_size + fenced_space);
+
+        let first = line_number + line[0];
+        let rest = line.slice(1).map(l => spaces + l);
+        return [first].concat(rest);
+      }
+
+      if (fence === -1)
+        return text.split("\n").map(split_text(fenced_cols)).map(number_line);
+  
+      let fenced = [];
+      if (fence !== 0)
+        fenced = fenced2lines(text.substring(0, fence));
+
+      return fenced.concat(text2lines(text.substring(fence + "```".length)));
+    };
+    let lines = text2lines(m.cleanContent);
     let text = lines[0][0];
 
     // message body
