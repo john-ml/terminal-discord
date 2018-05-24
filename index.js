@@ -506,7 +506,7 @@ class Client {
 
       let number_line = function(line, number) {
         let line_number = colorize_(pad(number + "", line_number_size, " "), "yellow") + fenced_space;
-        let spaces = " ".repeat(line_number_size + fenced_space);
+        let spaces = " ".repeat(line_number_size + fenced_space.length);
 
         let first = line_number + line[0];
         let rest = line.slice(1).map(l => spaces + l);
