@@ -525,6 +525,10 @@ class Client {
     this.set_scroll(this.scroll_offset + process.stdout.rows);
   }
 
+  page_end() {
+    this.set_scroll(0);
+  }
+
   send(s) {
     switch (this.state) {
       case Client.TOP:
@@ -547,6 +551,34 @@ class Client {
         this.channel.send({
           files: [{ attachment: path, name: "image.png" }]
         });
+        break;
+    }
+  }
+
+  delete(k = 1, max_search_limit = 10) {
+    let self = this;
+    let delete_messages = function(messages) {
+      let hits = 0;
+      for (let i = 0; i < messages.length; ++i) {
+        let m = messages[i];
+        if (m.author.id === self.client.user.id) {
+          ++hits;
+          if (hits == k) {
+            m.delete();
+            return;
+          }
+        }
+      }
+      println("Couldn't find a message to delete within the last " + max_search_limit + " messages.");
+    };
+
+    switch (this.state) {
+      case Client.TOP:
+        println("Currently not in a text channel.");
+        break;
+      case Client.CHANNEL:
+      case Client.DM:
+        this.fetch_messages(max_search_limit, delete_messages);
         break;
     }
   }
@@ -623,6 +655,9 @@ function handle_keypress(key) {
     case "\u001b[5~": // page-up
       client.page_up();
       break;
+    case "\u0007": // ctrl+g
+      client.page_end();
+      break;
     case "\u001bw": // alt+w
       //input.next_word();
       break;
@@ -674,6 +709,7 @@ function handle_command(command) {
   }
 
   let server_query, channel_query;
+  let k, max_search_limit;
   switch (cmd) {
     case "q":
     case "quit":
@@ -706,6 +742,14 @@ function handle_command(command) {
     case "i":
     case "image":
       client.send_image(arg);
+      break;
+    case "d":
+    case "delete":
+      k = arg.split(" ")[0];
+      max_search_limit = arg.split(" ")[1];
+      if (isNaN(parseInt(k)))
+        k = 1;
+      client.delete(k, max_search_limit);
       break;
     case "p":
     case "pwd":
