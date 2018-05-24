@@ -288,7 +288,7 @@ class Client {
 
     this.channel = undefined; // used when state = CHANNEL or DM
     this.scroll_offset = 0; // used when state = CHANNEL or DM
-    this.edit_message = undefined; // used when editing a message
+    this.edit_stack = []; // used when editing a message
 
     // hook up discord.js events
     println("Logging in...");
@@ -335,6 +335,8 @@ class Client {
           limit: max_request_size,
           before: messages[messages.length - 1].id
         };
+        if (after !== undefined) // need to propagate this
+          options.after = after;
         self.channel.fetchMessages(options).then(accumulate);
       }
     };
@@ -426,7 +428,7 @@ class Client {
   }
 
   print_message(m) {
-    let is_editing = this.editing() && m.id === this.edit_message.id;
+    let is_editing = this.editing() && m.id === this.edit_message().id;
     let bg_color = is_editing ? color2octal("white") : color2octal("black");
     let fg_color = is_editing ? color2octal("black") : color2octal("white");
     let colorize_octal_ = function(string, octal) {
@@ -448,7 +450,6 @@ class Client {
     let minutes = date.getMinutes();
     let pad_time = s => pad(s, 2, "0");
     let stamp = pad_time(hours) + ":" + pad_time(minutes);
-    stamp = colorize_default(stamp);
   
     // username
     let author = pad(m.author.username, author_size, " ");
@@ -477,14 +478,19 @@ class Client {
       text += combine_overflow_lines(lines[0].slice(1));
     if (lines.length > 1)
       text += lines.slice(1).map(combine_lines).join("");
-    text = colorize_default(text);
     
     // attachments
+    // don't handle overflow--easier to copy urls
     if (m.attachments.array().length > 0)
-      text += colorize_default(m.attachments.array()[0].url); // don't handle overflow--easier to copy urls
+      text += "\n" + prefix + colorize_(m.attachments.array()[0].url, "magenta");
+
+    // mentions
     if (m.isMemberMentioned(this.client.user)) {
       stamp = colorize_(stamp, "yellow");
       text = colorize_(text, "yellow");
+    } else {
+      stamp = colorize_default(stamp);
+      text = colorize_default(text);
     }
 
     // print message
@@ -580,8 +586,8 @@ class Client {
       case Client.CHANNEL:
       case Client.DM:
         if (this.editing()) {
-          this.edit_message.edit(s);
-          this.edit_message = undefined;
+          this.edit_message().edit(s);
+          this.stop_editing();
         } else
           this.channel.send(s);
         break;
@@ -637,7 +643,6 @@ class Client {
     let send_mention = function(messages) {
       for (let i = 0; i < messages.length; ++i) {
         let m = messages[i];
-        //console.log(m.author.username, name);
         if (m.author.username.includes(name)) {
           m.reply(message);
           return true;
@@ -663,15 +668,15 @@ class Client {
     let max_search_limit = 10;
     let select_for_editing = function(messages) {
       for (let i = 0; i < messages.length; ++i) {
-        let m = mode === "after" ? messages[messages.length - 1 - i] : messages[i];
+        let m = messages[i]; //mode === "after" ? messages[messages.length - 1 - i] : messages[i];
         if (m.author.id === self.client.user.id) {
-          self.edit_message = m;
+          self.edit_stack.push(m);
           input.load_string(m.cleanContent);
           self.refresh();
           return;
         }
       }
-      println("Couldn't find message sent by '" + self.client.username +
+      println("Couldn't find message sent by '" + self.client.user.username +
               "' within last " + max_search_limit + " messages.");
     }
     
@@ -695,17 +700,30 @@ class Client {
   }
 
   edit_prev() {
-    this.edit_select("before", this.edit_message.id);
+    this.edit_select("before", this.edit_message().id);
   }
 
   edit_next() {
-    this.edit_select("after", this.edit_message.id);
+    switch (this.state) {
+      case Client.TOP:
+        println("Currently not in a text channel.");
+        break;
+      case Client.CHANNEL:
+      case Client.DM:
+        this.edit_stack.pop();
+        if (this.editing())
+          input.load_string(this.edit_message().cleanContent);
+        this.refresh();
+        break;
+    }
   }
 
-  editing() { return this.edit_message !== undefined; }
+  editing() { return this.edit_stack.length > 0; }
+
+  edit_message() { return this.edit_stack[this.edit_stack.length - 1]; }
 
   stop_editing() {
-    this.edit_message = undefined;
+    this.edit_stack = [];
     this.refresh();
   }
 }
