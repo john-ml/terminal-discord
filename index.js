@@ -766,13 +766,19 @@ function handle_keypress(key) {
       input.insert("\n");
       break;
     case "\u001b[A": // up
-      input.history_prev();
+      if (client.editing())
+        input.up();
+      else
+        input.history_prev();
       break;
     case "\u001bk": // alt+k
       input.up();
       break;
     case "\u001b[B": // down
-      input.history_next();
+      if (client.editing())
+        input.down();
+      else
+        input.history_next();
       break;
     case "\u001bj": // alt+j
       input.down();
@@ -806,18 +812,22 @@ function handle_keypress(key) {
       client.scroll_up();
       break;
     case "\u0006": // ctrl+f
-    case "\u001b[6~": // page-down
       if (client.editing())
         client.edit_next();
       else
         client.page_down();
       break;
+    case "\u001b[6~": // page-down
+      client.page_down();
+      break;
     case "\u0002": // ctrl+b
-    case "\u001b[5~": // page-up
       if (client.editing())
         client.edit_prev();
       else
         client.page_up();
+      break;
+    case "\u001b[5~": // page-up
+      client.page_up();
       break;
     case "\u0007": // ctrl+g
       client.page_end();
@@ -845,7 +855,7 @@ function handle_keypress(key) {
 
 function handle_input() {
   let s = input.value();
-  if (s.startsWith(command_prefix)) {
+  if (!client.editing() && s.startsWith(command_prefix)) {
     handle_command(s.substring(command_prefix.length));
     return;
   }
