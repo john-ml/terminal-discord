@@ -86,4 +86,6 @@ Alt+semicolon: Send newline (for multiline messages)
 
 Up/Down: Move up/down in input buffer
 
+Control+f/b: Switch to editing next/previous message
 
+Enter: Finalize edit
