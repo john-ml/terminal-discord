@@ -60,7 +60,7 @@ Every command has a 1-2 letter alias:
 
 ### Hotkeys
 
-| Hotkey(s)                      | Description                                     |
+| Key(s)                         | Description                                     |
 | ------------------------------ | ----------------------------------------------- |
 | Control+c or Control+d         | Quit                                            |
 | Up/Down                        | View next/previous in input history             |
@@ -76,7 +76,7 @@ Every command has a 1-2 letter alias:
 
 ### Hotkeys in edit mode
 
-| Hotkey(s)   | Description                             |
+| Key(s)      | Description                             |
 | ----------- | --------------------------------------- |
 | Up/Down     | Move up/down in input buffer            |
 | Control+f/b | Switch to editing next/previous message |
