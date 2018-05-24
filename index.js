@@ -384,7 +384,7 @@ class Client {
         println("/");
         break;
       case Client.DM:
-        println("not implemented yet"); // TODO
+        println("/" + this.channel.recipient.username);
         break;
       case Client.CHANNEL:
         println("/" + this.channel.guild.name + "/" + this.channel.name);
