@@ -1,3 +1,7 @@
 #!/usr/bin/env bash
 
-node index.js
+if [ -f "config.json" ]; then
+  node index.js
+else
+  echo "config.json does not exist; exiting."
+fi

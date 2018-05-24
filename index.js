@@ -702,7 +702,6 @@ class Client {
         switch (mode) {
           case "latest": this.fetch_messages(max_search_limit, select_for_editing); break;
           case "before": this.fetch_messages(max_search_limit, select_for_editing, id); break;
-          case "after": this.fetch_messages(max_search_limit, select_for_editing, undefined, id); break;
         }
         break;
     }
