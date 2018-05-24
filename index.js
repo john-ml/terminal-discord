@@ -937,7 +937,7 @@ function handle_command(command) {
       break;
     case "h":
     case "help":
-      println(fs.readFileSync("README.md"));
+      println(fs.readFileSync("help.txt"));
       break;
     default:
       println("Unknown command '" + cmd + "'.");

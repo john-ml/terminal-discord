@@ -26,4 +26,4 @@ Type 'help' for a list of available commands.
 $ 
 ```
 
-Commands are prefixed with `/` (e.g. `/help` displays the list of available commands/hotkeys and how to use them).
+Commands are prefixed with `/` (e.g. `/help` displays the contents of [help.txt](), which contains a list of available commands/hotkeys and how to use them).
