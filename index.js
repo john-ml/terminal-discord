@@ -9,6 +9,7 @@ const cont_prefix = "│ ";
 const command_prefix = "/";
 const author_size = 10;
 const separator = "│";
+const fuzzy_separator = ":";
 
 // to get unicode escape codes
 unicode_keylogger = false;
@@ -80,6 +81,8 @@ ansi.move_left = "\033[1D";
 ansi.beginning_of_line = n => "\033[" + n + "E";
 class InputBuffer {
   constructor(prefix, cont_prefix) {
+    if (prefix.length !== cont_prefix.length)
+      throw "Prefix and continuation prefix must be of same length.";
     this.prefix = prefix;
     this.cont_prefix = cont_prefix;
     this.lines = [[]];
@@ -215,7 +218,7 @@ class InputBuffer {
     let lines = [];
     let is_extra = [];
     for (let i = 0; i < this.lines.length; ++i) {
-      let cols = process.stdout.columns - this.prefix.length; // assumes prefix and cont_prefix have same len
+      let cols = process.stdout.columns - this.prefix.length;
       let overflow_rows = Math.floor(this.lines[i].length / cols);
       extra_rows += overflow_rows;
       if (i < this.row)
@@ -256,7 +259,7 @@ class InputBuffer {
     print(this.prefix + lines.join("\n"));
 
     // move the cursor to the right place
-    let right_offset = this.prefix.length; // assumes prefix & cont_prefix are same len
+    let right_offset = this.prefix.length;
     if (lines.length > 0) {
       // console.log(lines.length, row, col);
       process.stdout.write(ansi.move_up.repeat(lines.length - 1 - row) + "\r");
@@ -420,10 +423,22 @@ class Client {
     // stamp length = 5
     let indent = [5, author_size, 0].reduce((x, y) => x + y + 1);
     let prefix = " ".repeat(indent) + separator + " ";
-    let lines = m.cleanContent.split("\n");
-    let text = lines[0];
+    let fuzzy_prefix = " ".repeat(indent) + fuzzy_separator + " ";
+ 
+    // convert main message to text, accounting for overflow
+    let cols = process.stdout.columns - prefix.length;
+    let denull = item => item === null ? [""] : item
+    let split_line = line => denull(line.match(new RegExp(".{1," + cols + "}", "g")));
+    let lines = m.cleanContent.split("\n").map(split_line);
+    let text = lines[0][0];
+
+    let combine_overflow_lines = ls => ls.map(l => "\n" + fuzzy_prefix + l).join("");
+    let combine_lines = ls => "\n" + prefix + ls[0] + combine_overflow_lines(ls.slice(1));
+    if (lines[0].length > 1)
+      text += combine_overflow_lines(lines[0].slice(1));
     if (lines.length > 1)
-      text += lines.slice(1).map(line => "\n" + prefix + line).join("");
+      text += lines.slice(1).map(combine_lines).join("");
+    
 
     if (m.attachments.array().length > 0)
       text += m.attachments.array()[0].url;
