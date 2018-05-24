@@ -392,6 +392,19 @@ class Client {
     }
   }
 
+  view_direct_messages(name_query) {
+    let satisfactory = c => c.type === "dm" && c.recipient.username.includes(name_query);
+    let channels = this.client.channels.filterArray(satisfactory);
+
+    if (channels.length > 0) {
+      this.channel = channels[0];
+      this.state = Client.DM;
+      this.refresh();
+      return;
+    }
+    println("No DM channel matching '" + name_query + "'.");
+  }
+
   view_channel(channel_query, server) {
     if (server === undefined) {
       switch (this.state) {
@@ -433,9 +446,9 @@ class Client {
     let fg_color = is_editing ? color2octal("black") : color2octal("white");
     let colorize_octal_ = function(string, octal) {
       if (is_editing)
-        return colorize_octal(string, color2octal("black"), octal);
+        return colorize_octal(string, fg_color, octal);
       else
-        return colorize_octal(string, octal, color2octal("black"));
+        return colorize_octal(string, octal, bg_color);
     }
     let colorize_ = (string, color) => colorize_octal_(string, color2octal(color));
     let colorize_default = (string) => colorize_octal(string, fg_color, bg_color);
@@ -455,7 +468,7 @@ class Client {
     let author = pad(m.author.username, author_size, " ");
     if (m.member !== null) {
       let color = rgb2octal(m.member.displayHexColor);
-      color = color === bg_color ? fg_color : color;
+      color = color === color2octal("black") ? color2octal("white") : color;
       author = colorize_octal_(author, color);
     }
   
@@ -668,7 +681,7 @@ class Client {
     let max_search_limit = 10;
     let select_for_editing = function(messages) {
       for (let i = 0; i < messages.length; ++i) {
-        let m = messages[i]; //mode === "after" ? messages[messages.length - 1 - i] : messages[i];
+        let m = messages[i];
         if (m.author.id === self.client.user.id) {
           self.edit_stack.push(m);
           input.load_string(m.cleanContent);
@@ -910,6 +923,9 @@ function handle_command(command) {
     case "edit":
        client.start_editing();
        break;
+    case "dm":
+    case "direct-message":
+       client.view_direct_messages(arg);
     case "p":
     case "pwd":
       client.print_current_path();
