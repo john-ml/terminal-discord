@@ -10,7 +10,7 @@ Create a file called `config.json` in the same directory as `index.js` that incl
 
 ```json
 {
-    "token": <your token here>
+    "token": `${your token here}`
 }
 ```
 
