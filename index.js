@@ -45,6 +45,11 @@ function rgb2octal(hex) {
   return parseInt(b + g + r, 2);
 }
 
+function color2octal(name) {
+  let colors = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"];
+  return colors.indexOf(name);
+}
+
 function colorize_octal(string, foreground = 0b111, background = 0b000) {
   let set = "\033[3" + foreground + ";4" + background + "m";
   let reset = "\033[0m";
@@ -56,9 +61,8 @@ function colorize_rgb(string, foreground = "#ffffff", background = "#000000") {
 }
 
 function colorize(string, foreground = "white", background = "black") {
-  let colors = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"];
-  let fg = colors.indexOf(foreground);
-  let bg = colors.indexOf(background);
+  let fg = color2octal(foreground);
+  let bg = color2octal(background);
 
   if (fg !== -1 && bg !== -1)
     return colorize_octal(string, fg, bg);
@@ -194,6 +198,14 @@ class InputBuffer {
       this.lines[this.row].splice(this.col, 1);
   }
 
+  load_string(s) {
+    this.clear();
+    this.lines = s.split("\n").map(line => line.split(""));
+    this.row = this.lines.length - 1;
+    this.end();
+    this.max_rows = this.lines.length;
+  }
+
   clear() {
     this.lines = [[]];
     this.row = 0;
@@ -276,6 +288,7 @@ class Client {
 
     this.channel = undefined; // used when state = CHANNEL or DM
     this.scroll_offset = 0; // used when state = CHANNEL or DM
+    this.edit_message = undefined; // used when editing a message
 
     // hook up discord.js events
     println("Logging in...");
@@ -303,7 +316,7 @@ class Client {
 
   // callback is a function that works with an array of messages
   // the messages array is in reverse chronological order
-  fetch_messages(n, callback) {
+  fetch_messages(n, callback, before, after) {
     let self = this;
     let messages = [];
     let max_request_size = 100;
@@ -326,7 +339,12 @@ class Client {
       }
     };
 
-    return this.channel.fetchMessages({ limit: n % max_request_size }).then(accumulate);
+    let options = { limit: n % max_request_size };
+    if (before !== undefined)
+      options.before = before;
+    if (after !== undefined)
+      options.after = after;
+    return this.channel.fetchMessages(options).then(accumulate);
   }
 
   list_servers() {
@@ -408,27 +426,45 @@ class Client {
   }
 
   print_message(m) {
+    let is_editing = this.editing() && m.id === this.edit_message.id;
+    let bg_color = is_editing ? color2octal("white") : color2octal("black");
+    let fg_color = is_editing ? color2octal("black") : color2octal("white");
+    let colorize_octal_ = function(string, octal) {
+      if (is_editing)
+        return colorize_octal(string, color2octal("black"), octal);
+      else
+        return colorize_octal(string, octal, color2octal("black"));
+    }
+    let colorize_ = (string, color) => colorize_octal_(string, color2octal(color));
+    let colorize_default = (string) => colorize_octal(string, fg_color, bg_color);
+
+    let space = colorize_default(" ");
+    let sep = colorize_default(separator);
+    let fuzzy_sep = colorize_default(fuzzy_separator);
+ 
     // time stamp
     let date = m.createdAt;
     let hours = date.getHours();
     let minutes = date.getMinutes();
     let pad_time = s => pad(s, 2, "0");
     let stamp = pad_time(hours) + ":" + pad_time(minutes);
+    stamp = colorize_default(stamp);
   
     // username
     let author = pad(m.author.username, author_size, " ");
     if (m.member !== null) {
-      if (rgb2octal(m.member.displayHexColor) !== rgb2octal("#000000"))
-        author = colorize_rgb(author, m.member.displayHexColor);
+      let color = rgb2octal(m.member.displayHexColor);
+      color = color === bg_color ? fg_color : color;
+      author = colorize_octal_(author, color);
     }
   
     // stamp length = 5
     let indent = [5, author_size, 0].reduce((x, y) => x + y + 1);
-    let prefix = " ".repeat(indent) + separator + " ";
-    let fuzzy_prefix = " ".repeat(indent) + fuzzy_separator + " ";
+    let prefix = space.repeat(indent) + sep + space;
+    let fuzzy_prefix = space.repeat(indent) + fuzzy_sep + space;
  
     // convert main message to text, accounting for overflow
-    let cols = process.stdout.columns - prefix.length;
+    let cols = process.stdout.columns - indent - separator.length - 1;
     let denull = item => item === null ? [""] : item
     let split_line = line => denull(line.match(new RegExp(".{1," + cols + "}", "g")));
     let lines = m.cleanContent.split("\n").map(split_line);
@@ -441,28 +477,29 @@ class Client {
       text += combine_overflow_lines(lines[0].slice(1));
     if (lines.length > 1)
       text += lines.slice(1).map(combine_lines).join("");
+    text = colorize_default(text);
     
     // attachments
     if (m.attachments.array().length > 0)
-      text += m.attachments.array()[0].url; // don't handle overflow--easier to copy urls
+      text += colorize_default(m.attachments.array()[0].url); // don't handle overflow--easier to copy urls
     if (m.isMemberMentioned(this.client.user)) {
-      stamp = colorize(stamp, "yellow");
-      text = colorize(text, "yellow");
+      stamp = colorize_(stamp, "yellow");
+      text = colorize_(text, "yellow");
     }
 
     // print message
-    let out = [stamp, author, separator, text].join(" ");
+    let out = [stamp, author, sep, text].join(space);
     println(out);
     
     // print reactions
     let reacts = m.reactions;
     if (reacts.size > 0) {
       let react2str = function(react) {
-        let num = colorize(react.count, "cyan");
-        let name = colorize(react.emoji.name, "blue");
-        return num + " " + name;
+        let num = colorize_(react.count, "cyan");
+        let name = colorize_(react.emoji.name, "blue");
+        return num + space + name;
       };
-      println(prefix + reacts.map(react2str).join(" ")); // overflow?
+      println(prefix + reacts.map(react2str).join(space)); // overflow?
     }
   }
 
@@ -494,6 +531,7 @@ class Client {
       case Client.DM:
         n = process.stdout.rows + this.scroll_offset;
         this.fetch_messages(n, print_messages);
+        break;
     }
   }
 
@@ -541,7 +579,11 @@ class Client {
         break;
       case Client.CHANNEL:
       case Client.DM:
-        this.channel.send(s);
+        if (this.editing()) {
+          this.edit_message.edit(s);
+          this.edit_message = undefined;
+        } else
+          this.channel.send(s);
         break;
     }
   }
@@ -615,6 +657,57 @@ class Client {
         break;
     }
   }
+
+  edit_select(mode = "latest", id) {
+    let self = this;
+    let max_search_limit = 10;
+    let select_for_editing = function(messages) {
+      for (let i = 0; i < messages.length; ++i) {
+        let m = mode === "after" ? messages[messages.length - 1 - i] : messages[i];
+        if (m.author.id === self.client.user.id) {
+          self.edit_message = m;
+          input.load_string(m.cleanContent);
+          self.refresh();
+          return;
+        }
+      }
+      println("Couldn't find message sent by '" + self.client.username +
+              "' within last " + max_search_limit + " messages.");
+    }
+    
+    switch (this.state) {
+      case Client.TOP:
+        println("Currently not in a text channel.");
+        break;
+      case Client.CHANNEL:
+      case Client.DM:
+        switch (mode) {
+          case "latest": this.fetch_messages(max_search_limit, select_for_editing); break;
+          case "before": this.fetch_messages(max_search_limit, select_for_editing, id); break;
+          case "after": this.fetch_messages(max_search_limit, select_for_editing, undefined, id); break;
+        }
+        break;
+    }
+  }
+
+  start_editing() {
+    this.edit_select();
+  }
+
+  edit_prev() {
+    this.edit_select("before", this.edit_message.id);
+  }
+
+  edit_next() {
+    this.edit_select("after", this.edit_message.id);
+  }
+
+  editing() { return this.edit_message !== undefined; }
+
+  stop_editing() {
+    this.edit_message = undefined;
+    this.refresh();
+  }
 }
 // "state enum"
 Client.TOP = 0;
@@ -673,6 +766,8 @@ function handle_keypress(key) {
       break;
     case "\u001b": // esc
       input.clear();
+      if (client.editing())
+        client.stop_editing();
       break;
     case "\u0005": // ctrl+e
       client.scroll_down();
@@ -682,11 +777,17 @@ function handle_keypress(key) {
       break;
     case "\u0006": // ctrl+f
     case "\u001b[6~": // page-down
-      client.page_down();
+      if (client.editing())
+        client.edit_next();
+      else
+        client.page_down();
       break;
     case "\u0002": // ctrl+b
     case "\u001b[5~": // page-up
-      client.page_up();
+      if (client.editing())
+        client.edit_prev();
+      else
+        client.page_up();
       break;
     case "\u0007": // ctrl+g
       client.page_end();
@@ -787,6 +888,10 @@ function handle_command(command) {
         max_search_limit = undefined;
       client.delete(k, max_search_limit);
       break;
+    case "e":
+    case "edit":
+       client.start_editing();
+       break;
     case "p":
     case "pwd":
       client.print_current_path();
