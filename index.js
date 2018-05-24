@@ -354,10 +354,10 @@ class Client {
     switch (this.state) {
       case Client.TOP:
       case Client.DM:
-        println(ss.map(s => "  " + s.name).join("\n"));
+        println(ss.map(s => s.name).join("\n"));
         break;
       case Client.CHANNEL:
-        println(ss.map(s => (s.id == this.channel.guild.id ? "* " : "  ") + s.name).join("\n"));
+        println(ss.map(s => s.id === this.channel.guild.id ? colorize(s.name, "black", "white") : colorize(s.name, "white", "black")).join("\n"));
         break;
     }
   }
@@ -373,7 +373,7 @@ class Client {
         break;
       case Client.CHANNEL:
         cs = this.channels(this.channel.guild);
-        println(cs.map(c => (c.id == this.channel.id ? "* " : "  ") + c.name).join("\n"));
+        println(cs.map(c => c.id === this.channel.id ? colorize(c.name, "black", "white") : colorize(c.name, "white", "black")).join("\n"));
         break;
     }
   }
