@@ -86,6 +86,7 @@ class InputBuffer {
     this.row = 0;
     this.col = 0;
     this.max_rows = 1; // the longest the buffer's ever been over the course of a single edit
+    this.max_extra_rows = 0; // the greatest number of overflowing lines over course of a single edit
     this.history = [];
     this.history_pos = -1;
   }
@@ -195,22 +196,72 @@ class InputBuffer {
     this.row = 0;
     this.col = 0;
     this.max_rows = 1;
+    this.max_extra_rows = 0;
   }
 
   put() {
+    // move cursor to bottom of screen
     let bottom = ansi.beginning_of_line(process.stdout.rows);
     process.stdout.write(bottom);
 
+    // - compute the number of extra rows required
+    // - compute true row, col cursor position
+    // - convert each overflowing line to multiple lines
+    // - maintain an array is_extra where is_extra[i] is true if the ith line of lines
+    //   is the result of overlow and not a "true" line
+    let row = this.row;
+    let col = this.col;
+    let extra_rows = 0;
+    let lines = [];
+    let is_extra = [];
+    for (let i = 0; i < this.lines.length; ++i) {
+      let cols = process.stdout.columns - this.prefix.length; // assumes prefix and cont_prefix have same len
+      let overflow_rows = Math.floor(this.lines[i].length / cols);
+      extra_rows += overflow_rows;
+      if (i < this.row)
+        row += overflow_rows;
+      else if (i === this.row) {
+        row += Math.floor(this.col / cols);
+        col = this.col % cols;
+      }
+
+      let j;
+      for (j = 0; j < overflow_rows; ++j) {
+        lines.push(this.lines[i].slice(j * cols, (j + 1) * cols));
+        is_extra.push(j !== 0); // only the first line is a true line
+      }
+
+      let len = this.lines[i].length;
+      lines.push(this.lines[i].slice(len - len % cols));
+      is_extra.push(j !== 0);
+    }
+
+    this.max_extra_rows = Math.max(this.max_extra_rows, extra_rows);
+
+    // prepare a suitable number of rows
+    let rows = this.max_rows + this.max_extra_rows;
     let line_clearer = "\r" + " ".repeat(process.stdout.columns) + "\r" + ansi.move_up;
-    process.stdout.write(line_clearer.repeat(this.max_rows) + ansi.move_down);
+    process.stdout.write(line_clearer.repeat(rows) + ansi.move_down);
 
-    print(this.prefix + this.lines.map(line => line.join("")).join("\n" + this.cont_prefix));
-    process.stdout.write(ansi.move_up.repeat(this.lines.length - 1 - this.row) + "\r");
+    // convert lines to text
+    for (let i = 0; i < lines.length; ++i) {
+      let line = lines[i].join("");
+      if (i === 0)
+        lines[i] = line;
+      else if (!is_extra[i])
+        lines[i] = this.cont_prefix + line;
+      else
+        lines[i] = " ".repeat(this.prefix.length) + line;
+    }
+    print(this.prefix + lines.join("\n"));
 
-    let right_offset = this.row == 0 ? this.prefix.length : this.cont_prefix.length;
-    process.stdout.write(ansi.move_right.repeat(right_offset + this.col));
-
-    //process.stdout.write(this.row + " " + this.col + " " + this.lines.length);
+    // move the cursor to the right place
+    let right_offset = this.prefix.length; // assumes prefix & cont_prefix are same len
+    if (lines.length > 0) {
+      // console.log(lines.length, row, col);
+      process.stdout.write(ansi.move_up.repeat(lines.length - 1 - row) + "\r");
+      process.stdout.write(ansi.move_right.repeat(right_offset + col));
+    }
   }
 }
 
@@ -508,7 +559,7 @@ function handle_keypress(key) {
       input.history_add();
       input.clear();
       break;
-    case "\u001b;": // alt+'
+    case "\u001b;": // alt+;
       input.insert("\n");
       break;
     case "\u001b[A": // up
@@ -534,15 +585,6 @@ function handle_keypress(key) {
     case "\u001b[3~": // delete
       input.delete();
       break;
-    case "\u001bw": // alt+w
-      input.next_word();
-      break;
-    case "\u001bb": // alt+b
-      input.prev_word();
-      break;
-    case "\u001bd": // alt+d
-      input.delete_word();
-      break;
     case "\u001b[1~": // home
       input.home();
       break;
@@ -565,6 +607,15 @@ function handle_keypress(key) {
     case "\u0002": // ctrl+b
     case "\u001b[5~": // page-up
       client.page_up();
+      break;
+    case "\u001bw": // alt+w
+      //input.next_word();
+      break;
+    case "\u001bb": // alt+b
+      //input.prev_word();
+      break;
+    case "\u001bd": // alt+d
+      //input.delete_word();
       break;
     default:
       if (unicode_keylogger) {
