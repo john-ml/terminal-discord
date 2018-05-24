@@ -27,6 +27,6 @@ $
 ```
 
 Commands are prefixed with `/` (e.g. `/help` displays the contents of
-[help.txt](https://github.com/johnli0135/terminal-discord/blob/master/help.txt),
+[help.md](https://github.com/johnli0135/terminal-discord/blob/master/help.md),
 which contains a list of available commands/hotkeys and how to use them).
 
