@@ -33,15 +33,27 @@
 Every command as a 1-2 letter alias:
 
 `ss` → `servers`
+
 `s` → `server`
+
 `dm` → `direct-message`
+
 `p` → `pwd`
+
 `q` → `quit`
+
 `h` → `help`
+
 `cs` → `channels`
+
 `c` → `channel`
+
 `i` → `image`
+
 `r` → `refresh`
+
 `d` → `delete`
+
 `e` → `edit`
+
 `a` → `at`
