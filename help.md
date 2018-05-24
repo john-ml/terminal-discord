@@ -60,32 +60,24 @@ Every command has a 1-2 letter alias:
 
 ### Hotkeys
 
-Control+c or Control+d: Quit
-
-Up/Down: View next/previous in input history
-
-Home/End: Jump to beginning/end of current line of buffer
-
-Left/Right: Move left/right in input buffer
-
-Alt+h/j/k/l: Move left/down/up/right in input buffer
-
-Control+e/y: Scroll down/up
-
-Control+f/b or PageDown/PageUp: Scroll down/up by pageful
-
-Control+g: Scroll to latest messages
-
-Escape: Clear input buffer
-
-Enter: Send message or command
-
-Alt+semicolon: Send newline (for multiline messages)
+| Hotkey(s)                      | Description                                     |
+| ------------------------------ | ----------------------------------------------- |
+| Control+c or Control+d         | Quit                                            |
+| Up/Down                        | View next/previous in input history             |
+| Home/End                       | Jump to beginning/end of current line of buffer |
+| Left/Right                     | Move left/right in input buffer                 |
+| Alt+h/j/k/l                    | Move left/down/up/right in input buffer         |
+| Control+e/y                    | Scroll down/up                                  |
+| Control+f/b or PageDown/PageUp | Scroll down/up by pageful                       |
+| Control+g                      | Scroll to latest messages                       |
+| Escape                         | Clear input buffer                              |
+| Enter                          | Send message or command                         |
+| Alt+semicolon                  | Send newline (for multiline messages)           |
 
 ### Hotkeys in edit mode
 
-Up/Down: Move up/down in input buffer
-
-Control+f/b: Switch to editing next/previous message
-
-Enter: Finalize edit
+| Hotkey(s)   | Description                             |
+| ----------- | --------------------------------------- |
+| Up/Down     | Move up/down in input buffer            |
+| Control+f/b | Switch to editing next/previous message |
+| Enter       | Finalize edit                           |
