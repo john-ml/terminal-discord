@@ -30,7 +30,7 @@
 
 ### Command aliases
 
-Every command as a 1-2 letter alias:
+Every command has a 1-2 letter alias:
 
 `ss` → `servers`
 
