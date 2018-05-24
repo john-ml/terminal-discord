@@ -74,7 +74,7 @@ Every command has a 1-2 letter alias:
 | Enter                          | Send message or command                         |
 | Alt+semicolon                  | Send newline (for multiline messages)           |
 
-### Hotkeys in edit mode
+### Hotkeys that are different in edit mode
 
 | Key(s)      | Description                             |
 | ----------- | --------------------------------------- |
