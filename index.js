@@ -351,19 +351,27 @@ class Client {
 
   list_servers() {
     let ss = this.servers();
+    let highlighter = s => s.id === this.channel.guild.id
+                        ? colorize(s.name, "black", "white")
+                        : colorize(s.name, "white", "black");
+    let compare_names = (a, b) => a.name.localeCompare(b.name);
     switch (this.state) {
       case Client.TOP:
       case Client.DM:
         println(ss.map(s => s.name).join("\n"));
         break;
       case Client.CHANNEL:
-        println(ss.map(s => s.id === this.channel.guild.id ? colorize(s.name, "black", "white") : colorize(s.name, "white", "black")).join("\n"));
+        println(ss.sort(compare_names).map(highlighter).join("\n"));
         break;
     }
   }
 
   list_channels() {
     let cs;
+    let highlighter = s => s.id === this.channel.id
+                        ? colorize(s.name, "black", "white")
+                        : colorize(s.name, "white", "black");
+    let compare_names = (a, b) => a.name.localeCompare(b.name);
     switch (this.state) {
       case Client.TOP:
         println("No channels to view (currently not in a server).");
@@ -373,7 +381,7 @@ class Client {
         break;
       case Client.CHANNEL:
         cs = this.channels(this.channel.guild);
-        println(cs.map(c => c.id === this.channel.id ? colorize(c.name, "black", "white") : colorize(c.name, "white", "black")).join("\n"));
+        println(cs.sort(compare_names).map(highlighter).join("\n"));
         break;
     }
   }
