@@ -543,8 +543,11 @@ class Client {
     
     // attachments
     // don't handle overflow--easier to copy urls
-    if (m.attachments.array().length > 0)
-      text += "\n" + prefix + colorize_(m.attachments.array()[0].url, "magenta");
+    if (m.attachments.array().length > 0) {
+      let attachments = m.attachments.array();
+      attachments = attachments.map(a => "\n" + prefix + colorize_(a.url, "magenta"));
+      text += attachments;
+    }
 
     // mentions
     if (m.isMemberMentioned(this.client.user)) {
