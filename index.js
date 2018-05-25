@@ -82,7 +82,7 @@ ansi.move_up = "\033[1A";
 ansi.move_down = "\033[1B";
 ansi.move_right = "\033[1C";
 ansi.move_left = "\033[1D";
-ansi.beginning_of_line = n => "\033[" + n + "E";
+ansi.to_pos = (m, n) => "\033[" + m + ";" + n + "H";
 class InputBuffer {
   constructor(prefix, cont_prefix) {
     if (prefix.length !== cont_prefix.length)
@@ -216,7 +216,7 @@ class InputBuffer {
 
   put() {
     // move cursor to bottom of screen
-    let bottom = ansi.beginning_of_line(process.stdout.rows);
+    let bottom = ansi.to_pos(process.stdout.rows, 0);
     process.stdout.write(bottom);
 
     // - compute the number of extra rows required
@@ -283,12 +283,10 @@ class InputBuffer {
 // wrap server/channel navigation, DMs, etc
 class Client {
   constructor(token) {
-    this.state = Client.TOP;
     this.client = new Discord.Client();
 
-    this.channel = undefined; // used when state = CHANNEL or DM
-    this.scroll_offset = 0; // used when state = CHANNEL or DM
-    this.edit_stack = []; // used when editing a message
+    this.tabs = []; // array of { channel: Channel, scroll_offset: int, edit_stack: [Message] }
+    this.current_tab = -1;
 
     // hook up discord.js events
     println("Logging in...");
@@ -314,6 +312,35 @@ class Client {
     return channels.filter(c => c.type === "text");
   }
 
+  tab() {
+    return this.tabs[this.current_tab];
+  }
+
+  channel() {
+    return this.tab().channel;
+  }
+
+  scroll_offset() {
+    return this.tab().scroll_offset;
+  }
+
+  set_scroll_offset(n) {
+    this.tab().scroll_offset = n;
+  }
+
+  edit_stack() {
+    return this.tab().edit_stack;
+  }
+
+  state() {
+    if (this.current_tab === -1)
+      return Client.TOP;
+    switch (this.channel().type) {
+      case "text": return Client.CHANNEL;
+      case "dm": return Client.DM;
+    }
+  }
+
   // callback is a function that works with an array of messages
   // the messages array is in reverse chronological order
   fetch_messages(n, callback, before, after) {
@@ -337,7 +364,7 @@ class Client {
         };
         if (after !== undefined) // need to propagate this
           options.after = after;
-        self.channel.fetchMessages(options).then(accumulate);
+        self.channel().fetchMessages(options).then(accumulate);
       }
     };
 
@@ -346,16 +373,16 @@ class Client {
       options.before = before;
     if (after !== undefined)
       options.after = after;
-    return this.channel.fetchMessages(options).then(accumulate);
+    return this.channel().fetchMessages(options).then(accumulate);
   }
 
   list_servers() {
     let ss = this.servers();
-    let highlighter = s => s.id === this.channel.guild.id
+    let highlighter = s => s.id === this.channel().guild.id
                         ? colorize(s.name, "black", "white")
                         : colorize(s.name, "white", "black");
     let compare_names = (a, b) => a.name.localeCompare(b.name);
-    switch (this.state) {
+    switch (this.state()) {
       case Client.TOP:
       case Client.DM:
         println(ss.map(s => s.name).join("\n"));
@@ -368,11 +395,11 @@ class Client {
 
   list_channels() {
     let cs;
-    let highlighter = s => s.id === this.channel.id
+    let highlighter = s => s.id === this.channel().id
                         ? colorize(s.name, "black", "white")
                         : colorize(s.name, "white", "black");
     let compare_names = (a, b) => a.name.localeCompare(b.name);
-    switch (this.state) {
+    switch (this.state()) {
       case Client.TOP:
         println("No channels to view (currently not in a server).");
         break;
@@ -380,42 +407,62 @@ class Client {
         println("No channels to view (currently viewing DMs).");
         break;
       case Client.CHANNEL:
-        cs = this.channels(this.channel.guild);
+        cs = this.channels(this.channel().guild);
         println(cs.sort(compare_names).map(highlighter).join("\n"));
         break;
     }
   }
 
   print_current_path() {
-    switch (this.state) {
+    switch (this.state()) {
       case Client.TOP:
         println("/");
         break;
       case Client.DM:
-        println("/" + this.channel.recipient.username);
+        println("/" + this.channel().recipient.username);
         break;
       case Client.CHANNEL:
-        println("/" + this.channel.guild.name + "/" + this.channel.name);
+        println("/" + this.channel().guild.name + "/" + this.channel().name);
         break;
     }
   }
 
-  view_direct_messages(name_query) {
+  view(channel, new_tab = false) {
+    let i;
+    for (i = 0; i < this.tabs.length; ++i)
+      if (this.tabs[i].channel.id === channel.id)
+        break;
+
+    if (i !== this.tabs.length) {
+      this.current_tab = i;
+      return;
+    }
+
+    new_tab = new_tab || this.tabs.length === 0;
+    let new_metadata = { channel: channel, scroll_offset: 0, edit_stack: [] };
+    if (new_tab) {
+      this.tabs.push(new_metadata);
+      this.current_tab = this.tabs.length - 1;
+    } else {
+      this.tabs[this.current_tab] = new_metadata;
+    }
+  }
+
+  view_direct_messages(name_query, new_tab = false) {
     let satisfactory = c => c.type === "dm" && c.recipient.username.includes(name_query);
     let channels = this.client.channels.filterArray(satisfactory);
 
     if (channels.length > 0) {
-      this.channel = channels[0];
-      this.state = Client.DM;
+      this.view(channels[0], new_tab);
       this.refresh();
       return;
     }
     println("No DM channel matching '" + name_query + "'.");
   }
 
-  view_channel(channel_query, server) {
+  view_channel(channel_query, server, new_tab = false) {
     if (server === undefined) {
-      switch (this.state) {
+      switch (this.state()) {
         case Client.TOP:
           println("No channels to view (currently not in a server).");
           return;
@@ -423,14 +470,13 @@ class Client {
           println("No channels to view (currently viewing DMs).");
           return;
         case Client.CHANNEL:
-          server = this.channel.guild;
+          server = this.channel().guild;
       }
     } 
     let cs = this.channels(server);
     cs = cs.filter(c => c.name.includes(channel_query));
     if (cs.length > 0) {
-      this.channel = cs[0];
-      this.state = Client.CHANNEL;
+      this.view(cs[0], new_tab);
       this.refresh();
       return true;
     }
@@ -438,14 +484,42 @@ class Client {
     return false;
   }
 
-  view_server(server_query, channel_query) {
+  view_server(server_query, channel_query, new_tab = false) {
     let ss = this.servers();
     ss = ss.filter(s => s.name.includes(server_query));
     if (ss.length > 0)
       for (let i = 0; i < ss.length; ++i)
-        if (this.view_channel(channel_query, ss[i]))
+        if (this.view_channel(channel_query, ss[i], new_tab))
           return;
     println("No server matching '" + server_query + "' with channel matching '" + channel_query + "'.");
+  }
+
+  switch_to(tab_number) {
+    if (this.state() === Client.TOP) {
+      println("No tabs open.");
+      return;
+    }
+    if (tab_number < 0 || tab_number >= this.tabs.length) {
+      println("Tab " + tab_number + " does not exist.")
+      return;
+    }
+    this.current_tab = tab_number;
+    this.refresh();
+  }
+
+  close(tab_number = this.current_tab) {
+    if (this.state() === Client.TOP) {
+      println("No tabs to close.");
+      return;
+    }
+    if (tab_number < 0 || tab_number >= this.tabs.length) {
+      println("Tab " + tab_number + " does not exist.")
+      return;
+    }
+    this.tabs.splice(tab_number, 1);
+    this.current_tab = Math.min(this.current_tab, this.tabs.length - 1);
+    if (this.tabs.length > 0)
+      this.refresh();
   }
 
   print_message(m) {
@@ -577,12 +651,12 @@ class Client {
   refresh() {
     let self = this;
     let print_messages = function(messages) {
-      for (let i = messages.length - 1; i >= self.scroll_offset; --i) {
+      for (let i = messages.length - 1; i >= self.scroll_offset(); --i) {
         let m = messages[i];
         self.print_message(m);
       }
-      if (self.scroll_offset !== 0) {
-        let remark = self.scroll_offset + " more...";
+      if (self.scroll_offset() !== 0) {
+        let remark = self.scroll_offset() + " more...";
         let spaces = process.stdout.columns - remark.length;
         let spaces_left = Math.floor(spaces / 2);
         let spaces_right = Math.ceil(spaces / 2);
@@ -590,17 +664,35 @@ class Client {
         let line = " ".repeat(spaces_left) + remark + " ".repeat(spaces_right);
         println(colorize(line, "black", "white"));
       }
+
+      // print tabs
+      print(ansi.to_pos(0, 0));
+      clear_line();
+
+      let channel2str = function(tab, number) {
+        let name;
+        if (tab.channel.type === "dm")
+          name = tab.channel.recipient.username;
+        else if (tab.channel.type === "text")
+          name = tab.channel.name;
+        name = " " + name + " ";
+        if (number === self.current_tab)
+          name = colorize(name, "black", "white");
+        return name;
+      };
+      print(self.tabs.map(channel2str).join(""));
+
       input.put(); // redraw the cursor (necessary since this happens synchronously)
     };
 
     let n;
-    switch (this.state) {
+    switch (this.state()) {
       case Client.TOP:
         println("\nNo channels to view. Type 'help' for a list of available commands.");
         break;
       case Client.CHANNEL:
       case Client.DM:
-        n = process.stdout.rows + this.scroll_offset;
+        n = process.stdout.rows + this.scroll_offset();
         this.fetch_messages(n, print_messages);
         break;
     }
@@ -608,15 +700,15 @@ class Client {
 
   set_scroll(n) {
     let new_offset;
-    switch (this.state) {
+    switch (this.state()) {
      case Client.TOP:
         println("Currently not in a text channel.");
         break;
      case Client.CHANNEL:
      case Client.DM:
         new_offset = Math.max(0, n);
-        if (this.scroll_offset !== new_offset) {
-          this.scroll_offset = new_offset;
+        if (this.scroll_offset() !== new_offset) {
+          this.set_scroll_offset(new_offset);
           this.refresh();
         }
         break;
@@ -624,19 +716,19 @@ class Client {
   }
 
   scroll_up() {
-    this.set_scroll(this.scroll_offset + 1);
+    this.set_scroll(this.scroll_offset() + 1);
   }
 
   scroll_down() {
-    this.set_scroll(this.scroll_offset - 1);
+    this.set_scroll(this.scroll_offset() - 1);
   }
 
   page_down() {
-    this.set_scroll(this.scroll_offset - process.stdout.rows);
+    this.set_scroll(this.scroll_offset() - process.stdout.rows);
   }
 
   page_up() {
-    this.set_scroll(this.scroll_offset + process.stdout.rows);
+    this.set_scroll(this.scroll_offset() + process.stdout.rows);
   }
 
   page_end() {
@@ -644,7 +736,7 @@ class Client {
   }
 
   send(s) {
-    switch (this.state) {
+    switch (this.state()) {
       case Client.TOP:
         println("\nCurrently not in a text channel.");
         break;
@@ -654,19 +746,19 @@ class Client {
           this.edit_message().edit(s);
           this.stop_editing();
         } else
-          this.channel.send(s);
+          this.channel().send(s);
         break;
     }
   }
 
   send_image(path) {
-    switch (this.state) {
+    switch (this.state()) {
       case Client.TOP:
         println("Currently not in a text channel.");
         break;
       case Client.CHANNEL:
       case Client.DM:
-        this.channel.send({
+        this.channel().send({
           files: [{ attachment: path, name: "image.png" }]
         });
         break;
@@ -691,7 +783,7 @@ class Client {
       input.put(); // needed since this operation is synchronous
     };
 
-    switch (this.state) {
+    switch (this.state()) {
       case Client.TOP:
         println("Currently not in a text channel.");
         break;
@@ -717,7 +809,7 @@ class Client {
       input.put();
     }
 
-    switch (this.state) {
+    switch (this.state()) {
       case Client.TOP:
         println("Currently not in a text channel.");
         break;
@@ -735,7 +827,7 @@ class Client {
       for (let i = 0; i < messages.length; ++i) {
         let m = messages[i];
         if (m.author.id === self.client.user.id) {
-          self.edit_stack.push(m);
+          self.edit_stack().push(m);
           input.load_string(m.cleanContent);
           self.refresh();
           return;
@@ -745,7 +837,7 @@ class Client {
               "' within last " + max_search_limit + " messages.");
     }
     
-    switch (this.state) {
+    switch (this.state()) {
       case Client.TOP:
         println("Currently not in a text channel.");
         break;
@@ -768,13 +860,13 @@ class Client {
   }
 
   edit_next() {
-    switch (this.state) {
+    switch (this.state()) {
       case Client.TOP:
         println("Currently not in a text channel.");
         break;
       case Client.CHANNEL:
       case Client.DM:
-        this.edit_stack.pop();
+        this.edit_stack().pop();
         if (this.editing())
           input.load_string(this.edit_message().cleanContent);
         this.refresh();
@@ -782,12 +874,16 @@ class Client {
     }
   }
 
-  editing() { return this.edit_stack.length > 0; }
+  editing() {
+    if (this.state() === Client.TOP)
+      return false;
+    return this.edit_stack().length > 0;
+  }
 
-  edit_message() { return this.edit_stack[this.edit_stack.length - 1]; }
+  edit_message() { return this.edit_stack()[this.edit_stack().length - 1]; }
 
   stop_editing() {
-    this.edit_stack = [];
+    this.tabs[this.current_tab].edit_stack = [];
     this.refresh();
   }
 }
@@ -931,6 +1027,8 @@ function handle_command(command) {
 
   let server_query, channel_query;
   let k, max_search_limit;
+  let number;
+  let new_tab;
   switch (cmd) {
     case "q":
     case "quit":
@@ -950,15 +1048,21 @@ function handle_command(command) {
       break;
     case "c":
     case "channel":
-      client.view_channel(arg);
+    case "t":
+    case "tab-channel":
+      new_tab = cmd[0] === "t";
+      client.view_channel(arg, undefined, new_tab);
       break;
     case "s":
     case "server":
+    case "ts":
+    case "tab-server":
+      new_tab = cmd[0] === "t";
       server_query = arg.split(" ")[0];
       channel_query = arg.split(" ")[1];
       if (channel_query === undefined)
         channel_query = "";
-      client.view_server(server_query, channel_query);
+      client.view_server(server_query, channel_query, new_tab);
       break;
     case "i":
     case "image":
@@ -980,7 +1084,10 @@ function handle_command(command) {
        break;
     case "dm":
     case "direct-message":
-       client.view_direct_messages(arg);
+    case "tm":
+    case "tab-message":
+       new_tab = cmd[0] === "t";
+       client.view_direct_messages(arg, new_tab);
     case "p":
     case "pwd":
       client.print_current_path();
@@ -990,6 +1097,26 @@ function handle_command(command) {
       name = arg.split(" ")[0];
       contents = arg.substring(arg.indexOf(" ") + 1);
       client.reply_to(name, contents);
+      break;
+    case "x":
+    case "close":
+      number = parseInt(arg.split(" ")[0]);
+      if (isNaN(number))
+        number = undefined;
+      client.close(number);
+      break;
+    case "1":
+    case "2":
+    case "3":
+    case "4":
+    case "5":
+    case "6":
+    case "7":
+    case "8":
+    case "9":
+    case "0":
+      number = parseInt(cmd);
+      client.switch_to(number - 1);
       break;
     case "h":
     case "help":
