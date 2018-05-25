@@ -818,19 +818,13 @@ function handle_keypress(key) {
       input.insert("\n");
       break;
     case "\u001b[A": // up
-      if (client.editing())
-        input.up();
-      else
-        input.history_prev();
+      input.history_prev();
       break;
     case "\u001bk": // alt+k
       input.up();
       break;
     case "\u001b[B": // down
-      if (client.editing())
-        input.down();
-      else
-        input.history_next();
+      input.history_next();
       break;
     case "\u001bj": // alt+j
       input.down();
