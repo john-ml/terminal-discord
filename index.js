@@ -499,24 +499,24 @@ class Client {
       println("No tabs open.");
       return;
     }
-    if (tab_number < 0 || tab_number >= this.tabs.length) {
+    if (tab_number < 1 || tab_number > this.tabs.length) {
       println("Tab " + tab_number + " does not exist.")
       return;
     }
-    this.current_tab = tab_number;
+    this.current_tab = tab_number - 1;
     this.refresh();
   }
 
-  close(tab_number = this.current_tab) {
+  close(tab_number = this.current_tab + 1) {
     if (this.state() === Client.TOP) {
       println("No tabs to close.");
       return;
     }
-    if (tab_number < 0 || tab_number >= this.tabs.length) {
+    if (tab_number < 1 || tab_number > this.tabs.length) {
       println("Tab " + tab_number + " does not exist.")
       return;
     }
-    this.tabs.splice(tab_number, 1);
+    this.tabs.splice(tab_number - 1, 1);
     this.current_tab = Math.min(this.current_tab, this.tabs.length - 1);
     if (this.tabs.length > 0)
       this.refresh();
@@ -670,17 +670,20 @@ class Client {
       clear_line();
 
       let channel2str = function(tab, number) {
+        let num = number === self.current_tab ? number + 1 : colorize((number + 1).toString(), "cyan");
+
         let name;
         if (tab.channel.type === "dm")
-          name = tab.channel.recipient.username;
+          name = "@" + tab.channel.recipient.username;
         else if (tab.channel.type === "text")
-          name = tab.channel.name;
-        name = " " + name + " ";
+          name = tab.channel.name + " @ " + tab.channel.guild.name;
+
+        name = " " + num + " " + name + " ";
         if (number === self.current_tab)
           name = colorize(name, "black", "white");
         return name;
       };
-      print(self.tabs.map(channel2str).join(""));
+      print(self.tabs.map(channel2str).join(" "));
 
       input.put(); // redraw the cursor (necessary since this happens synchronously)
     };
@@ -1048,14 +1051,14 @@ function handle_command(command) {
       break;
     case "c":
     case "channel":
-    case "t":
+    case "tc":
     case "tab-channel":
       new_tab = cmd[0] === "t";
       client.view_channel(arg, undefined, new_tab);
       break;
     case "s":
     case "server":
-    case "ts":
+    case "t":
     case "tab-server":
       new_tab = cmd[0] === "t";
       server_query = arg.split(" ")[0];
@@ -1116,7 +1119,7 @@ function handle_command(command) {
     case "9":
     case "0":
       number = parseInt(cmd);
-      client.switch_to(number - 1);
+      client.switch_to(number);
       break;
     case "h":
     case "help":
