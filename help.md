@@ -80,4 +80,5 @@ Every command has a 1-2 letter alias:
 | ----------- | --------------------------------------- |
 | Up/Down     | Move up/down in input buffer            |
 | Control+f/b | Switch to editing next/previous message |
+| Escape      | Cancel edit                             |
 | Enter       | Finalize edit                           |
