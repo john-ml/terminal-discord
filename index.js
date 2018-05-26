@@ -1153,17 +1153,11 @@ function handle_command(command) {
         number = undefined;
       client.close(number);
       break;
-    case "1":
-    case "2":
-    case "3":
-    case "4":
-    case "5":
-    case "6":
-    case "7":
-    case "8":
-    case "9":
-    case "0":
-      number = parseInt(cmd);
+    case "g":
+    case "goto":
+      number = parseInt(arg.split(" ")[0]);
+      if (isNaN(number))
+        number = undefined;
       client.switch_to(number);
       break;
     case "h":
@@ -1171,7 +1165,11 @@ function handle_command(command) {
       println(fs.readFileSync("help.md"));
       break;
     default:
-      println("Unknown command '" + cmd + "'.");
+      number = parseInt(cmd);
+      if (isNaN(number))
+        println("Unknown command '" + cmd + "'.");
+      else
+        client.switch_to(number);
       break;
   }
 

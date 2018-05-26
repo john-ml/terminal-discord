@@ -4,7 +4,11 @@
 
 `server s c`: View a channel in a server where channel name contains `c` and server name contains `s`. If not specified, `c` is the empty string
 
+`tab-server s c`: Like `server`, but open the channel in a new tab
+
 `direct-message s`: Open DMs between you and a user whose name contains `s`
+
+`tab-message s`: Like `direct-message`, but open the channel in a new tab
 
 `pwd`: Print your current location (usually `/<server>/<channel>`)
 
@@ -12,11 +16,13 @@
 
 `help`: Display this text
 
-### Commands that only work while already in a channel
+### Commands that only work while already in at least one channel
 
 `channels`: List all other channels in the current server
 
 `channel c`: View a channel in the current server where channel name contains `c`
+
+`tab-channel c`: Like `channel`, but open the channel in a new tab
 
 `image path`: Attach an image
 
@@ -28,6 +34,10 @@
 
 `at s ...`: Send a message mentioning a user whose name contains `s` with content `...`. For example, `/at user hello` might send `@user, hello`
 
+`close n`: Close the `n`th tab
+
+`n`: View the `n`th tab
+
 ### Command aliases
 
 Every command has a 1-2 letter alias:
@@ -36,7 +46,11 @@ Every command has a 1-2 letter alias:
 
 `s` → `server`
 
+`t` → `tab-server`
+
 `dm` → `direct-message`
+
+`tm` → `tab-message`
 
 `p` → `pwd`
 
@@ -48,6 +62,8 @@ Every command has a 1-2 letter alias:
 
 `c` → `channel`
 
+`tc` → `tab-channel`
+
 `i` → `image`
 
 `r` → `refresh`
@@ -57,6 +73,10 @@ Every command has a 1-2 letter alias:
 `e` → `edit`
 
 `a` → `at`
+
+`x` → `close`
+
+`g` → `goto`
 
 ### Hotkeys
 
