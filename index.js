@@ -286,7 +286,7 @@ class Client {
   constructor(token) {
     this.client = new Discord.Client();
 
-    this.tabs = []; // array of { channel: Channel, scroll_offset: int, edit_stack: [Message] }
+    this.tabs = []; // array of { channel: Channel, scroll_offset: int, edit_stack: [Message], read: true }
     this.current_tab = -1;
 
     // hook up discord.js events
@@ -305,10 +305,17 @@ class Client {
 
       if (auto_refresh) {
         let update = m => {
-          if (self.state() === Client.TOP || m.channel.id !== self.channel().id)
+          if (self.state() === Client.TOP)
             return;
-          self.refresh();
-          input.put();
+          if (m.channel.id === self.channel().id)
+            self.refresh();
+          else {
+            for (let i = 0; i < this.tabs.length; ++i)
+              if (m.channel.id === this.tabs[i].channel.id)
+                this.tabs[i].read = false;
+            self.print_tabs();
+            input.put(); // restore cursor position
+          }
         }; 
         self.client.on("message", update);
         self.client.on("messageDelete", update);
@@ -346,6 +353,10 @@ class Client {
 
   edit_stack() {
     return this.tab().edit_stack;
+  }
+
+  mark_as_read(number = this.current_tab) {
+    this.tabs[number].read = true;
   }
 
   state() {
@@ -458,13 +469,14 @@ class Client {
     }
 
     new_tab = new_tab || this.tabs.length === 0;
-    let new_metadata = { channel: channel, scroll_offset: 0, edit_stack: [] };
+    let new_metadata = { channel: channel, scroll_offset: 0, edit_stack: [], read: false };
     if (new_tab) {
       this.tabs.push(new_metadata);
       this.current_tab = this.tabs.length - 1;
     } else {
       this.tabs[this.current_tab] = new_metadata;
     }
+    this.mark_as_read();
   }
 
   view_direct_messages(name_query, new_tab = false) {
@@ -525,6 +537,7 @@ class Client {
       return;
     }
     this.current_tab = tab_number - 1;
+    this.mark_as_read();
     this.refresh();
   }
 
@@ -683,7 +696,7 @@ class Client {
 
       num = (number + 1).toString();
       len = num.length;
-      if (number !== self.current_tab)
+      if (number !== self.current_tab && self.tabs[number].read)
         num = colorize(num, "cyan");
 
       let name;
@@ -699,6 +712,8 @@ class Client {
 
       if (number === self.current_tab)
         name = colorize(name, "black", "white");
+      else if (!self.tabs[number].read)
+        name = colorize(name, "black", "cyan");
 
       return [name, len];
     };
