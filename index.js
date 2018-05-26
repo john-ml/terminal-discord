@@ -1148,8 +1148,9 @@ function handle_command(command) {
     case "direct-message":
     case "tm":
     case "tab-message":
-       new_tab = cmd[0] === "t";
-       client.view_direct_messages(arg, new_tab);
+      new_tab = cmd[0] === "t";
+      client.view_direct_messages(arg, new_tab);
+      break;
     case "p":
     case "pwd":
       client.print_current_path();
