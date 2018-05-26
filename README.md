@@ -4,7 +4,7 @@ Discord client for Linux console.
 
 Screenshot:
 
-![screenshot](https://raw.githubusercontent.com/johnli0135/terminal-discord/master/screen.png).
+![screenshot](https://raw.githubusercontent.com/johnli0135/terminal-discord/master/screenshot.png).
 
 Requires [discord.js](https://discord.js.org/).
 
