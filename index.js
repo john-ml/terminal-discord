@@ -10,6 +10,7 @@ const command_prefix = "/";
 const author_size = 15;
 const separator = "│";
 const fuzzy_separator = ":";
+const auto_refresh = true;
 
 // to get unicode escape codes
 unicode_keylogger = false;
@@ -289,6 +290,7 @@ class Client {
     this.current_tab = -1;
 
     // hook up discord.js events
+    let self = this;
     println("Logging in...");
     this.client.login(token);
     this.client.on("ready", () => {
@@ -300,6 +302,18 @@ class Client {
       stdin.resume();
       stdin.setEncoding("utf8");
       stdin.on("data", handle_keypress);
+
+      if (auto_refresh) {
+        let update = m => {
+          if (m.channel.id === self.channel().id) {
+            self.refresh();
+            input.put();
+          }
+        }; 
+        self.client.on("message", update);
+        self.client.on("messageDelete", update);
+        self.client.on("messageUpdate", update);
+      }
     });
   }
 
