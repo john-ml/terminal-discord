@@ -2,6 +2,10 @@
 
 Discord client for Linux console.
 
+Screenshot:
+
+![screenshot](https://raw.githubusercontent.com/johnli0135/terminal-discord/master/screen.png).
+
 Requires [discord.js](https://discord.js.org/).
 
 ## Setup
