@@ -309,7 +309,9 @@ class Client {
 
   channels(server) {
     let channels = server.channels.array();
-    return channels.filter(c => c.type === "text");
+    channels = channels.filter(c => c.type === "text");
+    channels = channels.sort((a, b) => a.name.localeCompare(b.name));
+    return channels;
   }
 
   tab() {
@@ -427,7 +429,10 @@ class Client {
     }
   }
 
-  view(channel, new_tab = false) {
+  view_one_of(channels, new_tab = false) {
+    let namify = c => c.type === "dm" ? c.recipient.username : c.name;
+    let channel = channels.sort((a, b) => namify(a).length - namify(b).length)[0];
+
     let i;
     for (i = 0; i < this.tabs.length; ++i)
       if (this.tabs[i].channel.id === channel.id)
@@ -450,10 +455,12 @@ class Client {
 
   view_direct_messages(name_query, new_tab = false) {
     let satisfactory = c => c.type === "dm" && c.recipient.username.includes(name_query);
-    let channels = this.client.channels.filterArray(satisfactory);
+    let channels = this.client.channels;
+    channels = channels.filterArray(satisfactory);
+    channels = channels.sort((a, b) => a.recipient.username.localeCompare(b.recipient.username));
 
     if (channels.length > 0) {
-      this.view(channels[0], new_tab);
+      this.view_one_of(channels, new_tab);
       this.refresh();
       return;
     }
@@ -476,7 +483,7 @@ class Client {
     let cs = this.channels(server);
     cs = cs.filter(c => c.name.includes(channel_query));
     if (cs.length > 0) {
-      this.view(cs[0], new_tab);
+      this.view_one_of(cs, new_tab);
       this.refresh();
       return true;
     }
