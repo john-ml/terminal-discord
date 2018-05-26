@@ -13,7 +13,7 @@ const fuzzy_separator = ":";
 const auto_refresh = true;
 
 // to get unicode escape codes
-unicode_keylogger = true;
+unicode_keylogger = false;
 
 // helper printing functions
 function clear_line() {
@@ -670,6 +670,9 @@ class Client {
   }
 
   print_tabs() {
+    if (this.state() === Client.TOP)
+      return;
+
     let self = this;
 
     print(ansi.to_pos(0, 0));
@@ -958,6 +961,7 @@ let client = new Client(token);
 let input = new InputBuffer(prefix, cont_prefix);
 
 function handle_keypress(key) {
+  let chars;
   switch (key) {
     case "\u0003": // ctrl-c
     case "\u0004": // ctrl-d
@@ -1050,7 +1054,10 @@ function handle_keypress(key) {
         print(JSON.stringify(key));
         return;
       }
-      input.insert(key);
+      // if pasting, need to feed in 1 char at a time
+      chars = key.replace(/\r/g, "\n").split("");
+      for (c of chars)
+        input.insert(c);
       break;
   }
 
