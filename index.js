@@ -949,6 +949,7 @@ function handle_keypress(key) {
       handle_input();
       input.history_add();
       input.clear();
+      client.print_tabs();
       break;
     case "\u001b;": // alt+;
       input.insert("\n");
