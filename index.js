@@ -1081,6 +1081,8 @@ function handle_keypress(key) {
 
 function handle_input() {
   let s = input.value();
+  if (s === "")
+    return;
   if (!client.editing() && s.startsWith(command_prefix)) {
     handle_command(s.substring(command_prefix.length));
     return;
