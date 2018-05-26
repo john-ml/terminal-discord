@@ -648,6 +648,62 @@ class Client {
     }
   }
 
+  print_tabs() {
+    let self = this;
+
+    print(ansi.to_pos(0, 0));
+    clear_line();
+
+    let channel2str = function(tab, number, max_name_length = 1 << 30) {
+      let num, len;
+
+      num = (number + 1).toString();
+      len = num.length;
+      if (number !== self.current_tab)
+        num = colorize(num, "cyan");
+
+      let name;
+      if (tab.channel.type === "dm")
+        name = "@" + tab.channel.recipient.username;
+      else if (tab.channel.type === "text")
+        name = tab.channel.name + " @ " + tab.channel.guild.name;
+      name = name.substring(0, max_name_length - len);
+      len += name.length;
+
+      name = " " + num + " " + name + " ";
+      len += 3;
+
+      if (number === self.current_tab)
+        name = colorize(name, "black", "white");
+
+      return [name, len];
+    };
+
+    let string_lens = this.tabs.map((e, i) => channel2str(e, i));
+    let strings = string_lens.map(packed => packed[0]);
+    let lengths = string_lens.map(packed => packed[1]);
+    let sum = list => list.reduce((x, y) => x + y);
+    let argmax = function (list) {
+      let a, max = -Infinity;
+      for (let i = 0; i < list.length; ++i) {
+        if (list[i] > max) {
+          max = list[i];
+          a = i;
+        }
+      }
+      return a;
+    };
+
+    let max_name_length = Math.floor(process.stdout.columns / this.tabs.length) - 3;
+    if (max_name_length <= 1) {
+    } else while (sum(lengths) > process.stdout.columns) {
+      let a = argmax(lengths);
+      [strings[a], lengths[a]] = channel2str(this.tabs[a], a, max_name_length);
+    } 
+
+    print(strings.join(""));
+  }
+
   refresh() {
     let self = this;
     let print_messages = function(messages) {
@@ -665,26 +721,7 @@ class Client {
         println(colorize(line, "black", "white"));
       }
 
-      // print tabs
-      print(ansi.to_pos(0, 0));
-      clear_line();
-
-      let channel2str = function(tab, number) {
-        let num = number === self.current_tab ? number + 1 : colorize((number + 1).toString(), "cyan");
-
-        let name;
-        if (tab.channel.type === "dm")
-          name = "@" + tab.channel.recipient.username;
-        else if (tab.channel.type === "text")
-          name = tab.channel.name + " @ " + tab.channel.guild.name;
-
-        name = " " + num + " " + name + " ";
-        if (number === self.current_tab)
-          name = colorize(name, "black", "white");
-        return name;
-      };
-      print(self.tabs.map(channel2str).join(" "));
-
+      self.print_tabs();
       input.put(); // redraw the cursor (necessary since this happens synchronously)
     };
 
@@ -1129,4 +1166,6 @@ function handle_command(command) {
       println("Unknown command '" + cmd + "'.");
       break;
   }
+
+  client.print_tabs();
 }
