@@ -13,7 +13,7 @@ const fuzzy_separator = ":";
 const auto_refresh = true;
 
 // to get unicode escape codes
-unicode_keylogger = false;
+unicode_keylogger = true;
 
 // helper printing functions
 function clear_line() {
@@ -305,10 +305,10 @@ class Client {
 
       if (auto_refresh) {
         let update = m => {
-          if (m.channel.id === self.channel().id) {
-            self.refresh();
-            input.put();
-          }
+          if (self.state() === Client.TOP || m.channel.id !== self.channel().id)
+            return;
+          self.refresh();
+          input.put();
         }; 
         self.client.on("message", update);
         self.client.on("messageDelete", update);
