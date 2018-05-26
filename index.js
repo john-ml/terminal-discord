@@ -251,7 +251,7 @@ class InputBuffer {
       lines.push(this.lines[i].slice(len - len % cols));
       is_extra.push(j !== 0);
     }
-
+ 
     this.max_extra_rows = Math.max(this.max_extra_rows, extra_rows);
 
     // prepare a suitable number of rows
