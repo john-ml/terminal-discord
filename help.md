@@ -76,8 +76,6 @@ Every command has a 1-2 letter alias:
 
 `x` → `close`
 
-`g` → `goto`
-
 ### Hotkeys
 
 | Key(s)                         | Description                                     |
