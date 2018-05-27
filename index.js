@@ -3,6 +3,7 @@
 const Discord = require("discord.js");
 const fs = require("fs");
 const config = JSON.parse(fs.readFileSync("config.json"));
+const save_file = "saved_tabs.json";
 const token = config.token;
 const prefix = "$ ";
 const cont_prefix = "│ ";
@@ -295,13 +296,27 @@ class Client {
     this.client.login(token);
     this.client.on("ready", () => {
       println("Logged in as " + this.client.user.username + ".");
-      println("Type 'help' for a list of available commands.");
-      input.put();
+      println("Checking for saved tabs...");
       stdin = process.openStdin();
       stdin.setRawMode(true);
       stdin.resume();
       stdin.setEncoding("utf8");
       stdin.on("data", handle_keypress);
+      if (fs.existsSync(save_file)) {
+        println("Loading saved tabs...");
+        let json = JSON.parse(fs.readFileSync(save_file));
+        let ids = json.ids;
+        let cs = ids.map(id => self.client.channels.filterArray(c => c.id === id))
+                    .filter(cs => cs.length > 0)
+                    .map(cs => cs[0]);
+        self.tabs = cs.map(function(c) {
+          return { channel: c, scroll_offset: 0, edit_stack: [], read: true };
+        });
+        self.current_tab = json.current_tab;
+        self.refresh();
+      } else 
+        println("Type 'help' for a list of available commands.");
+      input.put();
 
       if (auto_refresh) {
         let update = m => {
@@ -680,6 +695,13 @@ class Client {
       };
       println(prefix + reacts.map(react2str).join(space)); // overflow?
     }
+  }
+
+  save_tabs() {
+    fs.writeFileSync(save_file, JSON.stringify({
+      ids: this.tabs.map(t => t.channel.id),
+      current_tab: this.current_tab
+    }));
   }
 
   print_tabs() {
@@ -1198,6 +1220,10 @@ function handle_command(command) {
       if (isNaN(number))
         number = undefined;
       client.switch_to(number);
+      break;
+    case "sv":
+    case "save":
+      client.save_tabs();
       break;
     case "h":
     case "help":

@@ -10,6 +10,8 @@
 
 `tab-message s`: Like `direct-message`, but open the channel in a new tab
 
+`save`: Save the current open tabs to `saved_tabs.json`, overwriting any previous save
+
 `pwd`: Print your current location (usually `/<server>/<channel>`)
 
 `quit`: Quit
@@ -51,6 +53,8 @@ Every command has a 1-2 letter alias:
 `dm` → `direct-message`
 
 `tm` → `tab-message`
+
+`sv` → `save`
 
 `p` → `pwd`
 
