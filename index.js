@@ -402,7 +402,6 @@ class Client {
   }
 
   mark_as_read(number = this.current_tab) {
-    console.log(this.tabs[number].last_read, Date.now());
     this.tabs[number].last_read = Date.now();
   }
 
