@@ -1184,8 +1184,10 @@ function handle_command(command) {
   switch (cmd) {
     case "q":
     case "quit":
-      if (auto_save)
+      if (auto_save) {
+        println("Saving tabs...");
         client.save_tabs();
+      }
       process.exit();
       break;
     case "r":
