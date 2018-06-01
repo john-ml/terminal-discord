@@ -12,6 +12,7 @@ const author_size = 15;
 const separator = "│";
 const fuzzy_separator = ":";
 const auto_refresh = true;
+const auto_save = true;
 
 // to get unicode escape codes
 unicode_keylogger = false;
@@ -282,6 +283,16 @@ class InputBuffer {
   }
 }
 
+// helper function for channels
+function get_latest_date(c) {
+  return c.fetchMessages({ limit: 1 }).then(msgs => {
+    let ms = msgs.array();
+    if (ms.length === 0)
+      return 0;
+    return ms[0].createdTimestamp.valueOf();
+  });
+};
+
 // wrap server/channel navigation, DMs, etc
 class Client {
   constructor(token) {
@@ -310,14 +321,6 @@ class Client {
         print("Loading saved tabs ");
         let json = JSON.parse(fs.readFileSync(save_file));
         let candidates = self.client.channels.array();
-        let get_latest_date = function(c) {
-          return c.fetchMessages({ limit: 1 }).then(msgs => {
-            let ms = msgs.array();
-            if (ms.length === 0)
-              return 0;
-            return ms[0].createdTimestamp.valueOf();
-          });
-        };
         self.tabs = [];
         for (let i = 0; i < json.tabs.length; ++i) {
           let tab = json.tabs[i];
@@ -500,7 +503,7 @@ class Client {
     }
   }
 
-  view_one_of(channels, new_tab = false) {
+  async view_one_of(channels, new_tab = false) {
     let namify = c => c.type === "dm" ? c.recipient.username : c.name;
     let channel = channels.sort((a, b) => namify(a).length - namify(b).length)[0];
 
@@ -515,7 +518,14 @@ class Client {
     }
 
     new_tab = new_tab || this.tabs.length === 0;
-    let new_metadata = { channel: channel, scroll_offset: 0, edit_stack: [], read: false };
+    let latest = await get_latest_date(channel);
+    let new_metadata = {
+      channel: channel,
+      scroll_offset: 0,
+      edit_stack: [],
+      latest: latest
+    };
+
     if (new_tab) {
       this.tabs.push(new_metadata);
       this.current_tab = this.tabs.length - 1;
@@ -1174,6 +1184,8 @@ function handle_command(command) {
   switch (cmd) {
     case "q":
     case "quit":
+      if (auto_save)
+        client.save_tabs();
       process.exit();
       break;
     case "r":
