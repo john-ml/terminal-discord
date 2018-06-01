@@ -535,21 +535,21 @@ class Client {
     this.mark_as_read();
   }
 
-  view_direct_messages(name_query, new_tab = false) {
+  async view_direct_messages(name_query, new_tab = false) {
     let satisfactory = c => c.type === "dm" && c.recipient.username.includes(name_query);
     let channels = this.client.channels;
     channels = channels.filterArray(satisfactory);
     channels = channels.sort((a, b) => a.recipient.username.localeCompare(b.recipient.username));
 
     if (channels.length > 0) {
-      this.view_one_of(channels, new_tab);
+      await this.view_one_of(channels, new_tab);
       this.refresh();
       return;
     }
     println("No DM channel matching '" + name_query + "'.");
   }
 
-  view_channel(channel_query, server, new_tab = false) {
+  async view_channel(channel_query, server, new_tab = false) {
     if (server === undefined) {
       switch (this.state()) {
         case Client.TOP:
@@ -565,7 +565,7 @@ class Client {
     let cs = this.channels(server);
     cs = cs.filter(c => c.name.includes(channel_query));
     if (cs.length > 0) {
-      this.view_one_of(cs, new_tab);
+      await this.view_one_of(cs, new_tab);
       this.refresh();
       return true;
     }
