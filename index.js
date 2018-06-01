@@ -286,16 +286,20 @@ class InputBuffer {
 class Client {
   constructor(token) {
     this.client = new Discord.Client();
-
-    this.tabs = []; // array of { channel: Channel, scroll_offset: int, edit_stack: [Message], read: true }
+    // array of {
+    //   channel: Channel,
+    //   scroll_offset: int,
+    //   edit_stack: [Message],
+    //   last_read: Date,
+    //   latest: Date,
+    // }
+    this.tabs = []; 
     this.current_tab = -1;
 
     // hook up discord.js events
     let self = this;
-    println("Logging in...");
-    this.client.login(token);
-    this.client.on("ready", () => {
-      println("Logged in as " + this.client.user.username + ".");
+    async function on_ready() {
+      println("Logged in as " + self.client.user.username + ".");
       println("Checking for saved tabs...");
       stdin = process.openStdin();
       stdin.setRawMode(true);
@@ -303,19 +307,42 @@ class Client {
       stdin.setEncoding("utf8");
       stdin.on("data", handle_keypress);
       if (fs.existsSync(save_file)) {
-        println("Loading saved tabs...");
+        print("Loading saved tabs ");
         let json = JSON.parse(fs.readFileSync(save_file));
-        let ids = json.ids;
-        let cs = ids.map(id => self.client.channels.filterArray(c => c.id === id))
-                    .filter(cs => cs.length > 0)
-                    .map(cs => cs[0]);
-        self.tabs = cs.map(function(c) {
-          return { channel: c, scroll_offset: 0, edit_stack: [], read: true };
-        });
+        let candidates = self.client.channels.array();
+        let get_latest_date = function(c) {
+          return c.fetchMessages({ limit: 1 }).then(msgs => {
+            let ms = msgs.array();
+            if (ms.length === 0)
+              return 0;
+            return ms[0].createdTimestamp.valueOf();
+          });
+        };
+        self.tabs = [];
+        for (let i = 0; i < json.tabs.length; ++i) {
+          let tab = json.tabs[i];
+          for (let i = 0; i < candidates.length; ++i) {
+            let c = candidates[i];
+            if (c.id === tab.channel.id) {
+              let latest = await get_latest_date(c);
+              self.tabs.push({
+                channel: c,
+                scroll_offset: tab.scroll_offset,
+                edit_stack: [],
+                last_read: tab.last_read,
+                latest: latest
+              });
+              break;
+            }
+          }
+          print("\rLoading saved tabs (" + i + " of " + json.tabs.length + ")");
+        }
+        println();
         self.current_tab = json.current_tab;
         self.refresh();
       } else 
         println("Type 'help' for a list of available commands.");
+
       input.put();
 
       if (auto_refresh) {
@@ -325,9 +352,9 @@ class Client {
           if (m.channel.id === self.channel().id)
             self.refresh();
           else {
-            for (let i = 0; i < this.tabs.length; ++i)
-              if (m.channel.id === this.tabs[i].channel.id)
-                this.tabs[i].read = false;
+            for (let i = 0; i < self.tabs.length; ++i)
+              if (m.channel.id === self.tabs[i].channel.id)
+                self.tabs[i].latest = Date.now();
             self.print_tabs();
             input.put(); // restore cursor position
           }
@@ -336,7 +363,11 @@ class Client {
         self.client.on("messageDelete", update);
         self.client.on("messageUpdate", update);
       }
-    });
+    }
+
+    println("Logging in...");
+    this.client.login(token);
+    this.client.on("ready", on_ready);
   }
 
   servers() {
@@ -371,7 +402,8 @@ class Client {
   }
 
   mark_as_read(number = this.current_tab) {
-    this.tabs[number].read = true;
+    console.log(this.tabs[number].last_read, Date.now());
+    this.tabs[number].last_read = Date.now();
   }
 
   state() {
@@ -699,7 +731,7 @@ class Client {
 
   save_tabs() {
     fs.writeFileSync(save_file, JSON.stringify({
-      ids: this.tabs.map(t => t.channel.id),
+      tabs: this.tabs,
       current_tab: this.current_tab
     }));
   }
@@ -715,10 +747,13 @@ class Client {
 
     let channel2str = function(tab, number, max_name_length = 1 << 30) {
       let num, len;
+      let is_read = function(tab) {
+        return tab.last_read >= tab.latest;
+      };
 
       num = (number + 1).toString();
       len = num.length;
-      if (number !== self.current_tab && self.tabs[number].read)
+      if (number !== self.current_tab && is_read(self.tabs[number]))
         num = colorize(num, "cyan");
 
       let name;
@@ -734,7 +769,7 @@ class Client {
 
       if (number === self.current_tab)
         name = colorize(name, "black", "white");
-      else if (!self.tabs[number].read)
+      else if (!is_read(self.tabs[number]))
         name = colorize(name, "black", "cyan");
 
       return [name, len];
