@@ -739,8 +739,17 @@ class Client {
   }
 
   save_tabs() {
+    let simplifier = function(tab) { // to avoid circular json structures
+      return {
+        id: tab.channel.id,
+        scroll_offset: tab.scroll_offset,
+        edit_stack: tab.edit_stack,
+        last_read: tab.last_read,
+        latest: tab.latest
+      };
+    };
     fs.writeFileSync(save_file, JSON.stringify({
-      tabs: this.tabs,
+      tabs: this.tabs.map(simplifier),
       current_tab: this.current_tab
     }));
   }
