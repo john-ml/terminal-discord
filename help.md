@@ -95,6 +95,7 @@ Every command has a 1-2 letter alias:
 | Escape                         | Clear input buffer                              |
 | Enter                          | Send message or command                         |
 | Alt+semicolon                  | Send newline (for multiline messages)           |
+| Alt+`([0-9])`                  | View tab `\1`                                   |
 
 ### Hotkeys that are different in edit mode
 

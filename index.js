@@ -741,7 +741,7 @@ class Client {
   save_tabs() {
     let simplifier = function(tab) { // to avoid circular json structures
       return {
-        id: tab.channel.id,
+        channel: { id: tab.channel.id },
         scroll_offset: tab.scroll_offset,
         edit_stack: tab.edit_stack,
         last_read: tab.last_read,
@@ -1139,6 +1139,16 @@ function handle_keypress(key) {
     case "\u001bd": // alt+d
       //input.delete_word();
       break;
+    case "\u001b1": client.switch_to(1); break; // alt+1
+    case "\u001b2": client.switch_to(2); break; // alt+2
+    case "\u001b3": client.switch_to(3); break; // alt+3
+    case "\u001b4": client.switch_to(4); break; // alt+4
+    case "\u001b5": client.switch_to(5); break; // alt+5
+    case "\u001b6": client.switch_to(6); break; // alt+6
+    case "\u001b7": client.switch_to(7); break; // alt+7
+    case "\u001b8": client.switch_to(8); break; // alt+8
+    case "\u001b9": client.switch_to(9); break; // alt+9
+    case "\u001b0": client.switch_to(10); break; // alt+0
     default:
       if (unicode_keylogger) {
         print(JSON.stringify(key));
